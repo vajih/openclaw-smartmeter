@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartMeter Dashboard - OpenClaw Cost Optimization</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+                        <rect width="40" height="40" rx="8" fill="#16a34a"/>
+                        <path d="M12 20L18 26L28 14" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <div class="logo-text">
+                        <h1>SmartMeter</h1>
+                        <p>AI Cost Optimization for OpenClaw</p>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <span class="last-updated">Updated: <span id="lastUpdated">--</span></span>
+                    <button class="btn-refresh" onclick="refreshDashboard()">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M8 3V1L5 4l3 3V5a5 5 0 110 10 5 5 0 01-5-5H1a7 7 0 1014 0A7 7 0 008 3z"/>
+                        </svg>
+                        Refresh
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Dashboard -->
+        <main class="dashboard">
+            <!-- Hero Section - Savings Display -->
+            <section class="hero-card">
+                <div class="savings-display">
+                    <div class="savings-label">Total Savings Potential</div>
+                    <div class="savings-amount" id="savingsAmount">--</div>
+                    <div class="savings-percentage" id="savingsPercentage">--</div>
+                </div>
+                <div class="cost-comparison">
+                    <div class="cost-item">
+                        <div class="cost-label">Current Cost</div>
+                        <div class="cost-value" id="currentCost">$0.00/mo</div>
+                    </div>
+                    <div class="cost-arrow">→</div>
+                    <div class="cost-item optimized">
+                        <div class="cost-label">Optimized Cost</div>
+                        <div class="cost-value" id="optimizedCost">$0.00/mo</div>
+                    </div>
+                </div>
+                <div class="confidence-badge" id="confidenceBadge">
+                    <span class="confidence-icon">ℹ️</span>
+                    <span class="confidence-text">--</span>
+                </div>
+            </section>
+
+            <!-- Stats Cards -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon">📅</div>
+                    <div class="stat-content">
+                        <div class="stat-label">Analysis Period</div>
+                        <div class="stat-value" id="analysisPeriod">-- days</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">📊</div>
+                    <div class="stat-content">
+                        <div class="stat-label">Tasks Analyzed</div>
+                        <div class="stat-value" id="totalTasks">--</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">⚡</div>
+                    <div class="stat-content">
+                        <div class="stat-label">Cache Hit Rate</div>
+                        <div class="stat-value" id="cacheHitRate">--%</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">💰</div>
+                    <div class="stat-content">
+                        <div class="stat-label">Daily Spend</div>
+                        <div class="stat-value" id="dailySpend">$0.00</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Section -->
+            <div class="charts-grid">
+                <div class="chart-card">
+                    <h3>Model Usage & Cost</h3>
+                    <div class="chart-container">
+                        <canvas id="modelChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <h3>Task Classification</h3>
+                    <div class="chart-container">
+                        <canvas id="taskChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recommendations Section -->
+            <section class="recommendations-section">
+                <h2>🎯 Optimization Recommendations</h2>
+                <div id="recommendationsList" class="recommendations-list">
+                    <!-- Recommendations will be dynamically inserted -->
+                </div>
+            </section>
+
+            <!-- Details Section -->
+            <section class="details-section">
+                <div class="details-tabs">
+                    <button class="tab-btn active" onclick="switchTab('usage')">Usage Details</button>
+                    <button class="tab-btn" onclick="switchTab('models')">Model Breakdown</button>
+                    <button class="tab-btn" onclick="switchTab('timeline')">Cost Timeline</button>
+                </div>
+                <div class="details-content" id="detailsContent">
+                    <!-- Content will be dynamically inserted based on active tab -->
+                </div>
+            </section>
+
+            <!-- Actions Footer -->
+            <footer class="actions-footer">
+                <div class="action-buttons">
+                    <button class="btn btn-secondary" onclick="exportReport()">
+                        📄 Export Report
+                    </button>
+                    <button class="btn btn-secondary" onclick="viewConfig()">
+                        ⚙️ Preview Config
+                    </button>
+                    <button class="btn btn-primary" onclick="applyOptimizations()">
+                        ✨ Apply Optimizations
+                    </button>
+                </div>
+                <div class="action-info">
+                    <p>💡 Tip: Click "Preview Config" to see exact changes before applying</p>
+                </div>
+            </footer>
+        </main>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toast" class="toast"></div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <p>Loading dashboard...</p>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

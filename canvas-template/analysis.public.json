@@ -1,0 +1,141 @@
+{
+  "version": "0.1.0",
+  "generated_at": "2026-02-06T14:30:00Z",
+  "start_date": "2026-01-20",
+  "end_date": "2026-02-05",
+  "days_analyzed": 2,
+  "confidence_level": "Optimistic",
+  "total_tasks": 94,
+  "daily_average": 2.00,
+  "weekly_projected": 14.00,
+  "monthly_projected_current": 59.97,
+  "monthly_projected_optimized": 31.14,
+  "cache_hit_rate": 0.192,
+  "model_breakdown": [
+    {
+      "model": "DeepSeek Chat",
+      "tasks": 65,
+      "cost": 1.20,
+      "avg_cost_per_task": 0.018,
+      "percentage": 30.0
+    },
+    {
+      "model": "Claude Sonnet 4.5",
+      "tasks": 28,
+      "cost": 2.40,
+      "avg_cost_per_task": 0.086,
+      "percentage": 60.0
+    },
+    {
+      "model": "Claude Opus 4.5",
+      "tasks": 1,
+      "cost": 0.40,
+      "avg_cost_per_task": 0.400,
+      "percentage": 10.0
+    }
+  ],
+  "task_breakdown": [
+    {
+      "type": "Code",
+      "count": 74,
+      "percentage": 78.7,
+      "avg_cost": 0.038
+    },
+    {
+      "type": "Writing",
+      "count": 15,
+      "percentage": 16.0,
+      "avg_cost": 0.053
+    },
+    {
+      "type": "Research",
+      "count": 5,
+      "percentage": 5.3,
+      "avg_cost": 0.080
+    }
+  ],
+  "recommendations": [
+    {
+      "type": "model_switch",
+      "title": "Switch Primary Model to DeepSeek Chat",
+      "description": "DeepSeek Chat handles 69% of your tasks at 1/5th the cost of Claude Sonnet 4.5. This model is ideal for your code-heavy workload.",
+      "impact": "$28/month",
+      "details": [
+        "Current: Claude Sonnet 4.5 as primary",
+        "Recommended: DeepSeek Chat for code tasks",
+        "Success rate: 94% on similar workloads",
+        "Quality maintained with smart fallbacks"
+      ]
+    },
+    {
+      "type": "agent_creation",
+      "title": "Create Specialized 'code-reviewer' Agent",
+      "description": "74 code tasks detected. A dedicated agent optimized for code review and debugging will reduce costs while improving response quality.",
+      "impact": "$12/month",
+      "details": [
+        "Optimized for: Code reviews, debugging, refactoring",
+        "Primary model: DeepSeek Chat",
+        "Fallback: Claude Sonnet 4.5",
+        "Expected success rate: 92%"
+      ]
+    },
+    {
+      "type": "cache_optimization",
+      "title": "Optimize Caching Strategy",
+      "description": "Current cache hit rate is only 19.2%. Enabling long retention and 55-minute heartbeat can improve this to 65%+.",
+      "impact": "$15/month",
+      "details": [
+        "Current hit rate: 19.2%",
+        "Target hit rate: 65%",
+        "Enable: long_retention mode",
+        "Set: 55-minute heartbeat interval"
+      ]
+    },
+    {
+      "type": "budget_control",
+      "title": "Add Budget Controls & Alerts",
+      "description": "Set daily spending caps and weekly alerts to prevent unexpected cost spikes.",
+      "impact": "Prevent overruns",
+      "details": [
+        "Daily cap: $2.40",
+        "Weekly alert: at 75% ($12.60)",
+        "Monthly budget: $40",
+        "Auto-pause: at 95% of budget"
+      ]
+    }
+  ],
+  "cache_stats": {
+    "total_requests": 94,
+    "cache_hits": 18,
+    "cache_misses": 76,
+    "hit_rate": 0.192,
+    "savings_from_cache": 0.80
+  },
+  "cost_timeline": [
+    {
+      "date": "2026-01-20",
+      "cost": 2.10,
+      "tasks": 47
+    },
+    {
+      "date": "2026-02-05",
+      "cost": 1.90,
+      "tasks": 47
+    }
+  ],
+  "agent_suggestions": [
+    {
+      "name": "code-reviewer",
+      "purpose": "Code reviews, debugging, refactoring",
+      "primary_model": "deepseek/deepseek-chat",
+      "fallback_chain": ["anthropic/claude-sonnet-4.5", "anthropic/claude-opus-4.5"],
+      "estimated_tasks_per_month": 74,
+      "estimated_monthly_savings": 12.00
+    }
+  ],
+  "warnings": [
+    "Only 2 days of data analyzed - confidence is optimistic",
+    "Run analysis again after 14+ days for production-grade recommendations",
+    "Cache hit rate is below optimal (19% vs 60%+ target)"
+  ]
+}

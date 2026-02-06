@@ -1,0 +1,29 @@
+{
+  "name": "smartmeter-openclaw",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/cli/index.js",
+  "bin": {
+    "smartmeter": "./src/cli/index.js"
+  },
+  "directories": {
+    "doc": "docs",
+    "example": "examples",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "node --test",
+    "lint": "echo \"(add eslint later)\"",
+    "dashboard": "node src/cli/index.js dashboard",
+    "dashboard:preview": "python3 canvas-template/preview-server.py"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "commander": "^14.0.3",
+    "fs-extra": "^11.2.0",
+    "open": "^9.1.0"
+  }
+}
