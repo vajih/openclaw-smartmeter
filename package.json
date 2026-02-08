@@ -1,10 +1,11 @@
 {
-  "name": "smartmeter-openclaw",
+  "name": "openclaw-smartmeter",
   "version": "1.0.0",
-  "description": "",
+  "description": "AI cost optimization for OpenClaw - analyze usage and reduce costs by 48%",
   "main": "src/cli/index.js",
   "bin": {
-    "smartmeter": "./src/cli/index.js"
+    "smartmeter": "./src/cli/index.js",
+    "openclaw-smartmeter": "./src/cli/index.js"
   },
   "directories": {
     "doc": "docs",
@@ -17,7 +18,7 @@
     "dashboard": "node src/cli/index.js dashboard",
     "dashboard:preview": "python3 canvas-template/preview-server.py"
   },
-  "keywords": [],
+  "keywords": ["openclaw", "ai-cost-optimization", "token-monitoring", "llm-costs"],
   "author": "",
   "license": "ISC",
   "type": "module",
