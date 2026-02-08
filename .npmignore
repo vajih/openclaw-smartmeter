@@ -1,0 +1,22 @@
+# Development and CI
+.claude/
+.git/
+.github/
+
+# Tests and examples
+tests/
+examples/
+
+# Documentation (keep README, LICENSE, CONTRIBUTING, SECURITY, SPEC, SKILL)
+docs/screenshots/
+docs/CANVAS_BUILD_NOTES.md
+docs/CANVAS_DASHBOARD.md
+docs/SPEC_ALIGNMENT.md
+INTEGRATION_TASKS.md
+
+# Canvas template docs (keep runtime files)
+canvas-template/BUILD_SUMMARY.md
+canvas-template/QUICK_START.md
+
+# Build artifacts
+*.tgz
