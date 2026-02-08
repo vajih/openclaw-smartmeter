@@ -1,6 +1,6 @@
 {
   "name": "openclaw-smartmeter",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "AI cost optimization for OpenClaw - analyze usage and reduce costs by 48%",
   "main": "src/cli/index.js",
   "bin": {
@@ -18,10 +18,21 @@
     "dashboard": "node src/cli/index.js dashboard",
     "dashboard:preview": "python3 canvas-template/preview-server.py"
   },
-  "keywords": ["openclaw", "ai-cost-optimization", "token-monitoring", "llm-costs"],
+  "keywords": ["openclaw", "ai-cost-optimization", "token-monitoring", "llm-costs", "cost-reduction"],
   "author": "",
-  "license": "ISC",
+  "license": "Apache-2.0",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vajih/openclaw-smartmeter.git"
+  },
+  "bugs": {
+    "url": "https://github.com/vajih/openclaw-smartmeter/issues"
+  },
+  "homepage": "https://github.com/vajih/openclaw-smartmeter#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "dependencies": {
     "commander": "^14.0.3",
     "fs-extra": "^11.2.0",
