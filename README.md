@@ -152,12 +152,17 @@ smartmeter rollback
 
 ## Screenshots
 
-> Screenshots coming soon. The dashboard includes:
-> - Hero card with savings amount and confidence badge
-> - Stats cards for period, tasks, cache rate, and daily spend
-> - Interactive Chart.js charts for model and task breakdowns
-> - Recommendation cards with impact estimates and action buttons
-> - Tabbed detail views for usage, models, and timeline
+### Dashboard Overview
+![SmartMeter Dashboard](docs/screenshots/dashboard-overview.png)
+*Live-updating dashboard with cost savings, model breakdown, and actionable recommendations*
+
+### Cost Savings Analysis
+![Cost Savings](docs/screenshots/dashboard-hero.png)
+*Real-time savings calculation showing 48% cost reduction with confidence indicators*
+
+### Interactive Analytics
+![Analytics Charts](docs/screenshots/dashboard-charts.png)
+*Model usage breakdown and task classification powered by Chart.js*
 
 ## How It Works
 
