@@ -1,7 +1,15 @@
 #!/usr/bin/env node
 
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import { Command } from "commander";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const packageJson = JSON.parse(
+  readFileSync(join(__dirname, "../../package.json"), "utf8"),
+);
 import {
   cmdAnalyze,
   cmdShow,
@@ -18,7 +26,7 @@ const program = new Command();
 program
   .name("smartmeter")
   .description("Analyze OpenClaw usage and generate optimized configs to reduce AI costs")
-  .version("1.0.0");
+  .version(packageJson.version);
 
 function dataDirOpts(cmdOpts) {
   if (!cmdOpts.dataDir) return {};
