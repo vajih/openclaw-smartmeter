@@ -19,6 +19,9 @@ import {
   cmdStatus,
   cmdReport,
   cmdDashboard,
+  cmdEvaluate,
+  cmdGuide,
+  cmdServe,
 } from "./commands.js";
 
 const program = new Command();
@@ -78,5 +81,29 @@ program
   .option("-p, --port <number>", "OpenClaw gateway port", "8080")
   .option("--no-open", "Do not open browser automatically")
   .action((opts) => cmdDashboard({ port: Number(opts.port), open: opts.open }));
+
+program
+  .command("evaluate")
+  .description("Evaluate current configuration and show savings potential")
+  .option("-d, --data-dir <path>", "OpenClaw data directory (default: ~/.openclaw)")
+  .action((opts) => cmdEvaluate(dataDirOpts(opts)));
+
+program
+  .command("guide")
+  .description("Interactive guide for optimizing your configuration")
+  .option("-d, --data-dir <path>", "OpenClaw data directory (default: ~/.openclaw)")
+  .action((opts) => cmdGuide(dataDirOpts(opts)));
+
+program
+  .command("serve")
+  .description("Start dashboard + API server (full-featured web UI)")
+  .option("-p, --port <number>", "Dashboard port", "8080")
+  .option("--api-port <number>", "API server port", "3001")
+  .option("--no-open", "Do not open browser automatically")
+  .action((opts) => cmdServe({ 
+    port: Number(opts.port), 
+    apiPort: Number(opts.apiPort),
+    open: opts.open 
+  }));
 
 program.parse();

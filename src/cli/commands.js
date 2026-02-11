@@ -9,6 +9,7 @@ import { recommend } from "../analyzer/recommender.js";
 import { writeAnalysis, readAnalysis } from "../analyzer/storage.js";
 import { generateConfig } from "../generator/config-builder.js";
 import { CanvasDeployer } from "../canvas/deployer.js";
+import { startApiServer } from "../canvas/api-server.js";
 import {
   formatSummary,
   formatReport,
@@ -264,4 +265,277 @@ export async function cmdDashboard(opts = {}) {
   }
 
   return { url, canvasDir: deployer.canvasDir };
+}
+
+export async function cmdEvaluate(opts = {}) {
+  const analysis = await runPipeline(opts);
+  if (!analysis) {
+    console.log("No session data found. Nothing to evaluate.");
+    return null;
+  }
+
+  const s = analysis.summary;
+  const savings = s.potentialSavings || 0;
+  const savingsPercent = s.savingsPercentage || 0;
+
+  console.log(`
+╔════════════════════════════════════════════════════════╗
+║          SmartMeter Configuration Evaluation          ║
+╚════════════════════════════════════════════════════════╝
+
+📊 Current Analysis:
+   Period: ${analysis.period.days} days (${analysis.period.start} to ${analysis.period.end})
+   Tasks Analyzed: ${analysis.period.totalTasks}
+   Confidence: ${analysis.confidence.level}
+
+💰 Cost Analysis:
+   Current Monthly Cost:   $${s.currentMonthlyCost.toFixed(2)}
+   Optimized Monthly Cost: $${s.optimizedMonthlyCost.toFixed(2)}
+   Potential Savings:      $${savings.toFixed(2)}/month (${savingsPercent.toFixed(1)}%)
+
+🎯 Recommendations (${analysis.recommendations.length} total):
+${analysis.recommendations
+  .slice(0, 3)
+  .map((rec, i) => `   ${i + 1}. ${rec.title} - ${rec.impact}`)
+  .join("\n")}
+
+${analysis.recommendations.length > 3 ? `   ... and ${analysis.recommendations.length - 3} more\n` : ""}
+⚡ Cache Performance:
+   Hit Rate: ${((analysis.caching?.hitRate || 0) * 100).toFixed(1)}%
+   Cache Savings: $${(analysis.caching?.estimatedCacheSavings || 0).toFixed(2)}
+
+💡 Next Steps:
+   • Run 'smartmeter preview' to see config changes
+   • Run 'smartmeter apply' to implement optimizations
+   • Run 'smartmeter guide' for detailed optimization advice
+`);
+
+  return analysis;
+}
+
+export async function cmdGuide(opts = {}) {
+  const analysis = await runPipeline(opts);
+  if (!analysis) {
+    console.log("No session data found. Nothing to guide.");
+    return null;
+  }
+
+  const currentConfig = await readCurrentConfig(opts.configPath);
+  const { config } = generateConfig(analysis, currentConfig);
+
+  console.log(`
+╔════════════════════════════════════════════════════════╗
+║          SmartMeter Optimization Guide                ║
+╚════════════════════════════════════════════════════════╝
+
+This guide will help you understand and apply the recommended optimizations.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+## 📊 Your Current Situation
+
+You're spending approximately **$${analysis.summary.currentMonthlyCost.toFixed(2)}/month** 
+on AI model costs based on ${analysis.period.days} days of analysis.
+
+The analysis found **${analysis.period.totalTasks} tasks** across these categories:
+${Object.entries(analysis.categories || {})
+  .map(([name, c]) => `  • ${name}: ${c.count} tasks`)
+  .join("\n")}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+## 💰 Optimization Opportunities
+
+SmartMeter identified **$${analysis.summary.potentialSavings.toFixed(2)}/month** 
+in potential savings (${analysis.summary.savingsPercentage.toFixed(1)}%).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+## 🎯 Recommended Actions
+
+${analysis.recommendations
+  .map(
+    (rec, i) => `
+### ${i + 1}. ${rec.title}
+
+**Impact:** ${rec.impact}
+
+${rec.description}
+
+${rec.details ? rec.details.map((d) => `  • ${d}`).join("\n") : ""}
+`,
+  )
+  .join("\n")}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+## 🚀 How to Apply
+
+### Option 1: Review First (Recommended for first-time users)
+
+1. **Preview the changes:**
+   \`\`\`bash
+   smartmeter preview
+   \`\`\`
+
+2. **Review the proposed configuration carefully**
+
+3. **Apply when ready:**
+   \`\`\`bash
+   smartmeter apply
+   \`\`\`
+
+### Option 2: Apply Directly
+
+If you trust the analysis:
+\`\`\`bash
+smartmeter apply
+\`\`\`
+
+A backup will be automatically created at:
+~/.openclaw/openclaw.json.backup-<timestamp>
+
+### Option 3: Use Dashboard
+
+1. **Start the dashboard:**
+   \`\`\`bash
+   smartmeter serve
+   \`\`\`
+
+2. **Open http://localhost:8080 in your browser**
+
+3. **Click "Apply Optimizations" button**
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+## ⚙️ Key Configuration Changes
+
+${Object.keys(config._smartmeter?.comments || {}).length > 0 ? Object.entries(config._smartmeter.comments)
+  .map(([key, comment]) => `  • ${key}: ${comment}`)
+  .join("\n") : "No major changes required."}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+## 📈 Expected Results
+
+After applying these optimizations:
+
+✓ Monthly cost reduced to ~$${analysis.summary.optimizedMonthlyCost.toFixed(2)}
+✓ Simple tasks routed to cheaper models
+✓ Complex tasks still use premium models
+✓ Budget controls to prevent overruns
+✓ Cache optimization for repeated work
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+## 🔄 Rollback
+
+If you need to undo changes:
+\`\`\`bash
+smartmeter rollback
+\`\`\`
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+## ❓ Need Help?
+
+• Check the full report: \`smartmeter report\`
+• View current status: \`smartmeter status\`
+• Monitor costs: \`smartmeter dashboard\`
+
+`);
+
+  return { analysis, config };
+}
+
+export async function cmdServe(opts = {}) {
+  const port = opts.port || 8080;
+  const apiPort = opts.apiPort || 3001;
+  const shouldOpen = opts.open !== false;
+  const storageDir = opts.storageDir || SMARTMETER_DIR;
+
+  console.log(`
+╔════════════════════════════════════════════════════════╗
+║          SmartMeter Complete Server                   ║
+╚════════════════════════════════════════════════════════╝
+`);
+
+  // Deploy dashboard first
+  const deployer = new CanvasDeployer(opts.canvasOpts);
+  
+  try {
+    await deployer.deploy();
+    console.log(`✓ Dashboard deployed to ${deployer.canvasDir}`);
+  } catch (err) {
+    console.error(`Failed to deploy dashboard: ${err.message}`);
+    return null;
+  }
+
+  // Generate public analysis if available
+  const analysis = await readAnalysis(storageDir);
+  if (analysis) {
+    await deployer.generatePublicAnalysis(analysis);
+    console.log("✓ Analysis data updated");
+  } else {
+    console.log("⚠ No analysis data. Run 'smartmeter analyze' first.");
+  }
+
+  // Start API server
+  console.log("\n🚀 Starting API server...");
+  const apiServer = await startApiServer({ port: apiPort });
+
+  // Start static file server (using Python for simplicity)
+  const { spawn } = await import("node:child_process");
+  console.log(`\n🚀 Starting dashboard server on port ${port}...`);
+  
+  const server = spawn("python3", [
+    "-m",
+    "http.server",
+    String(port),
+    "--directory",
+    deployer.canvasDir,
+  ]);
+
+  server.stdout.on("data", (data) => {
+    console.log(`Dashboard: ${data}`);
+  });
+
+  const url = `http://localhost:${port}`;
+  console.log(`
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ SmartMeter is ready!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🌐 Dashboard:  ${url}
+📡 API Server: http://localhost:${apiPort}
+
+💡 Features enabled:
+   • Live dashboard updates (auto-refresh every 5s)
+   • Apply optimizations via UI
+   • Export reports
+   • Preview config changes
+
+Press Ctrl+C to stop all servers
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+`);
+
+  if (shouldOpen) {
+    console.log("🌐 Opening dashboard in browser...");
+    try {
+      await deployer.openDashboard(port);
+    } catch (err) {
+      console.log(`  Open manually: ${url}`);
+    }
+  }
+
+  // Handle shutdown
+  process.on("SIGINT", async () => {
+    console.log("\n\n🛑 Shutting down servers...");
+    server.kill();
+    await apiServer.stop();
+    console.log("✓ Servers stopped");
+    process.exit(0);
+  });
+
+  return { url, apiPort, deployer, apiServer };
 }

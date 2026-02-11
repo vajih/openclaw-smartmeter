@@ -392,6 +392,9 @@ function showToast(message, type = 'info') {
     }, 4000);
 }
 
+// API Configuration
+const API_BASE_URL = 'http://localhost:3001';
+
 // Action handlers
 function viewRecommendationDetails(index) {
     const rec = currentData.recommendations[index];
@@ -399,20 +402,105 @@ function viewRecommendationDetails(index) {
     // TODO: Open modal with full details
 }
 
-function exportReport() {
-    showToast('Exporting report... (Feature coming soon)', 'info');
-    // TODO: Generate PDF report
+async function exportReport() {
+    try {
+        showToast('Exporting report...', 'info');
+        const response = await fetch(`${API_BASE_URL}/api/export`);
+        
+        if (!response.ok) {
+            throw new Error('Failed to export report');
+        }
+        
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `smartmeter-report-${new Date().toISOString().slice(0,10)}.md`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        showToast('Report exported successfully!', 'success');
+    } catch (error) {
+        console.error('Export failed:', error);
+        showToast('Failed to export report. Make sure the API server is running.', 'error');
+    }
 }
 
-function viewConfig() {
-    showToast('Opening config preview... (Feature coming soon)', 'info');
-    // TODO: Show config diff in modal
+async function viewConfig() {
+    try {
+        showToast('Loading config preview...', 'info');
+        const response = await fetch(`${API_BASE_URL}/api/preview`);
+        
+        if (!response.ok) {
+            throw new Error('Failed to load preview');
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Show config in a modal or new window
+            const configWindow = window.open('', 'Config Preview', 'width=800,height=600');
+            configWindow.document.write(`
+                <html>
+                <head>
+                    <title>SmartMeter Config Preview</title>
+                    <style>
+                        body { font-family: monospace; padding: 20px; background: #1e1e1e; color: #d4d4d4; }
+                        pre { background: #252526; padding: 15px; border-radius: 5px; overflow: auto; }
+                        h2 { color: #4ec9b0; }
+                    </style>
+                </head>
+                <body>
+                    <h2>📋 Optimized Configuration Preview</h2>
+                    <p>This is the configuration that will be applied to ~/.openclaw/openclaw.json</p>
+                    <pre>${JSON.stringify(data.config, null, 2)}</pre>
+                </body>
+                </html>
+            `);
+            showToast('Config preview opened in new window', 'success');
+        } else {
+            showToast(data.error || 'Failed to load preview', 'error');
+        }
+    } catch (error) {
+        console.error('Preview failed:', error);
+        showToast('Failed to load preview. Make sure the API server is running.', 'error');
+    }
 }
 
-function applyOptimizations() {
-    if (confirm('Apply all optimizations? A backup of your current config will be created.')) {
-        showToast('Applying optimizations... (Feature coming soon)', 'info');
-        // TODO: Call SmartMeter CLI to apply config
+async function applyOptimizations() {
+    if (!confirm('Apply all optimizations?\n\nThis will:\n• Create a backup of your current config\n• Apply the optimized configuration\n• Restart OpenClaw may be required\n\nContinue?')) {
+        return;
+    }
+    
+    try {
+        showToast('Applying optimizations...', 'info');
+        
+        const response = await fetch(`${API_BASE_URL}/api/apply`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ confirm: true })
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to apply optimizations');
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast('✅ Optimizations applied successfully! Backup created.', 'success');
+            // Refresh dashboard after a short delay
+            setTimeout(() => refreshDashboard(), 1000);
+        } else {
+            showToast(data.error || 'Failed to apply optimizations', 'error');
+        }
+    } catch (error) {
+        console.error('Apply failed:', error);
+        showToast('Failed to apply optimizations. Make sure the API server is running.', 'error');
     }
 }
 

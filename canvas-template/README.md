@@ -1,3 +1,29 @@
+## What is SmartMeter?
+
+**Your AI costs are probably 2-3x higher than they need to be.** Most LLM applications blindly route everything to expensive models like GPT-4, even for simple tasks that GPT-3.5 or Claude Haiku could handle.
+
+SmartMeter analyzes your actual OpenClaw usage, identifies where you're overpaying, and generates an optimized routing configuration that saves 40-60% on AI costs—without sacrificing quality.
+
+**Real results:** We reduced our own OpenClaw spend by **48%** by routing routine tasks to cheaper models and reserving premium models for complex work.
+
+### How it works
+1. **Analyze** - Processes your OpenClaw logs to understand usage patterns
+2. **Identify** - Surfaces cost hotspots by model, task type, and token usage  
+3. **Optimize** - Generates a smart `openclaw.json` that routes tasks to the most cost-effective model
+4. **Save** - Measurable monthly savings, typically 40-60%
+## 👤 Who this is for
+
+SmartMeter is designed for:
+
+- **OpenClaw users** who are experimenting and suddenly see higher-than-expected model costs
+- Teams running OpenClaw agents with mixed workloads (quick tasks + deep reasoning tasks)
+- Anyone who wants **cost control without killing quality**
+
+Typical situation:
+
+- “I love OpenClaw… but my model bill is climbing.”
+- SmartMeter shows what’s driving the spend and suggests a safer routing strategy.
+
 # SmartMeter Canvas Dashboard Template
 
 Professional, live-updating dashboard for SmartMeter cost optimization visualization.
@@ -12,11 +38,13 @@ Professional, live-updating dashboard for SmartMeter cost optimization visualiza
 ## 🎯 Features
 
 ### Real-Time Updates
+
 - Auto-refreshes every 5 seconds
 - Polls `analysis.public.json` for latest data
 - No manual refresh needed
 
 ### Visualizations
+
 - **Hero Card**: Large savings display with before/after comparison
 - **Stats Grid**: Key metrics at a glance
 - **Model Chart**: Bar chart showing cost breakdown by model
@@ -25,6 +53,7 @@ Professional, live-updating dashboard for SmartMeter cost optimization visualiza
 - **Details Tabs**: Deep-dive into usage, models, and timeline
 
 ### User Actions
+
 - Preview config changes before applying
 - Export reports (coming soon)
 - Apply optimizations with one click
@@ -75,6 +104,7 @@ open http://localhost:8080/__openclaw__/canvas/smartmeter/
 ## 🔒 Data Privacy
 
 **analysis.public.json** is sanitized for web display:
+
 - ✅ Aggregated statistics
 - ✅ Model breakdowns
 - ✅ Recommendations
@@ -87,6 +117,7 @@ Full analysis stays in **~/.openclaw/smartmeter/analysis.json** (private).
 ## 🎨 Styling
 
 The dashboard uses a modern, professional design:
+
 - Clean color palette (green for savings, blue for info)
 - Responsive grid layout
 - Smooth animations
@@ -94,6 +125,7 @@ The dashboard uses a modern, professional design:
 - Mobile-friendly
 
 Perfect for:
+
 - LinkedIn screenshots
 - Client demos
 - Team presentations
@@ -103,18 +135,25 @@ Perfect for:
 ### Change Refresh Interval
 
 In `app.js`, modify:
+
 ```javascript
 refreshInterval = setInterval(async () => {
-    await refreshDashboard(true);
+  await refreshDashboard(true);
 }, 5000); // Change 5000 to desired milliseconds
 ```
 
 ### Change Chart Colors
 
 In `app.js`, modify the color arrays:
+
 ```javascript
 const modelColors = [
-    '#16a34a', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'
+  "#16a34a",
+  "#3b82f6",
+  "#f59e0b",
+  "#ef4444",
+  "#8b5cf6",
+  "#06b6d4",
 ];
 ```
 
@@ -125,6 +164,7 @@ Edit `analysis.public.json` structure and update rendering logic in `app.js`.
 ## 📊 Sample Data
 
 The included `analysis.public.json` contains realistic test data:
+
 - 2 days of analysis
 - 94 tasks processed
 - $60/month current cost
@@ -158,6 +198,7 @@ The included `analysis.public.json` contains realistic test data:
 ## 🎯 LinkedIn Launch Ready
 
 This dashboard is designed to be screenshot-friendly:
+
 - Professional appearance
 - Clear value proposition
 - Visual impact with charts

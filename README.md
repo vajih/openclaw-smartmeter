@@ -25,13 +25,13 @@ It parses your session logs, classifies tasks by type, identifies which models a
 
 Tested on live OpenClaw data (288 tasks across 9 sessions):
 
-| Metric | Value |
-|---|---|
-| Current monthly projection | $59.97 |
-| Optimized monthly projection | $31.14 |
-| **Potential savings** | **$28.82/month (48.1%)** |
-| Models analyzed | DeepSeek Chat, Claude Sonnet 4.5, Claude Opus 4.5 |
-| Confidence | Optimistic (2 days of data; improves with 14+ days) |
+| Metric                       | Value                                               |
+| ---------------------------- | --------------------------------------------------- |
+| Current monthly projection   | $59.97                                              |
+| Optimized monthly projection | $31.14                                              |
+| **Potential savings**        | **$28.82/month (48.1%)**                            |
+| Models analyzed              | DeepSeek Chat, Claude Sonnet 4.5, Claude Opus 4.5   |
+| Confidence                   | Optimistic (2 days of data; improves with 14+ days) |
 
 The key insight: DeepSeek Chat handled 69% of tasks at 1/5th the cost of premium models, while Opus was only needed for 15% of complex work.
 
@@ -72,6 +72,7 @@ smartmeter analyze --data-dir ~/my-openclaw-data
 ```
 
 Output:
+
 ```
 Analysis: 2026-02-04 to 2026-02-05 (2 days)
 
@@ -83,31 +84,63 @@ Analysis: 2026-02-04 to 2026-02-05 (2 days)
   Confidence                optimistic
 ```
 
-### 2. Preview recommended changes
+### 2. Evaluate your configuration
 
 ```bash
-smartmeter preview --data-dir ~/my-openclaw-data
+smartmeter evaluate
 ```
 
-```
-Proposed changes:
-  - Primary model: (none) -> deepseek/deepseek-chat
-  - Fallback chain: delivery-mirror -> anthropic/claude-sonnet-4.5 -> anthropic/claude-opus-4.5
-  - New agents: code-reviewer
-  - Budget: $2.40/day, $16.80/week
-```
+Output shows:
 
-### 3. View the full generated config
+- Current vs optimized costs
+- Potential savings
+- Cache performance
+- Top recommendations
+- Next steps
+
+### 3. Get optimization guidance
 
 ```bash
+smartmeter guide
+```
+
+Interactive guide with:
+
+- De5. Apply the optimized config
+
+```bash
+smartmeter apply --data-dir ~/my-openclaw-data
+```
+
+This creates a backup of your current config before writing the new one.
+
+### 6. Launch the full-featured dashboard
+
+```bash
+smartmeter serve
+```
+
+Opens an interactive web dashboard with API server:
+
+- **Apply optimizations** directly from the browser
+- **Export reports** as markdown
+- **Preview config changes** in a popup
+- Cost savings overview with confidence indicators
+- Model usage breakdown (bar chart)
+- Task classification distribution (doughnut chart)
+- Auto-refresh every 5 seconds
+
+### 7sh
+
 smartmeter show --data-dir ~/my-openclaw-data
-```
+
+````
 
 ### 4. Apply the optimized config
 
 ```bash
 smartmeter apply --data-dir ~/my-openclaw-data
-```
+````
 
 This creates a backup of your current config before writing the new one.
 
@@ -118,6 +151,7 @@ smartmeter dashboard
 ```
 
 Opens an interactive web dashboard in your browser with:
+
 - Cost savings overview with confidence indicators
 - Model usage breakdown (bar chart)
 - Task classification distribution (doughnut chart)
@@ -132,37 +166,82 @@ smartmeter rollback
 
 ## CLI Reference
 
-| Command | Description |
-|---|---|
-| `smartmeter analyze` | Run full analysis pipeline and save results |
-| `smartmeter show` | Display the generated optimized config as JSON |
-| `smartmeter preview` | Show what would change without applying |
-| `smartmeter apply` | Apply optimized config (creates backup first) |
-| `smartmeter rollback` | Restore the most recent backup config |
-| `smartmeter status` | Show current optimization status from stored analysis |
-| `smartmeter report` | Detailed breakdown: models, categories, temporal, caching |
-| `smartmeter dashboard` | Deploy and open the web dashboard |
+| Command                | Description                                               |
+| ---------------------- | --------------------------------------------------------- |
+| `smartmeter analyze`   | Run full analysis pipeline and save results               |
+| `smartmeter evaluate`  | Evaluate current configuration and show savings potential |
+| `smartmeter guide`     | Interactive guide for optimizing your configuration       |
+| `smartmeter show`      | Display the generated optimized config as JSON            |
+| `smartmeter preview`   | Show what would change without applying                   |
+| `smartmeter apply`     | Apply optimized config (creates backup first)             |
+| `smartmeter rollback`  | Restore the most recent backup config                     |
+| `smartmeter status`    | Show current optimization status from stored analysis     |
+| `smartmeter report`    | Detailed breakdown: models, categories, temporal, caching |
+| `smartmeter dashboard` | Deploy and open the web dashboard (static only)           |
+| `smartmeter serve`     | Start full-featured dashboard with API server             |
 
 **Global options** for commands that run analysis:
+
 - `-d, --data-dir <path>` — OpenClaw data directory (default: `~/.openclaw`)
 
 **Dashboard options:**
-- `-p, --port <number>` — OpenClaw gateway port (default: 8080)
+
+- `-p, --port <number>` — Dashboard port (default: 8080)
+- `--api-port <number>` — API server port (default: 3001, serve command only)
 - `--no-open` — Don't open browser automatically
+
+## Workflows
+
+### CLI Workflow (Quick Analysis)
+
+```bash
+# 1. Analyze your usage
+smartmeter analyze
+
+# 2. Get a friendly evaluation
+smartmeter evaluate
+
+# 3. Get detailed guidance
+smartmeter guide
+
+# 4. Preview changes
+smartmeter preview
+
+# 5. Apply optimizations
+smartmeter apply
+```
+
+### Dashboard Workflow (Full-Featured UI)
+
+```bash
+# Start dashboard + API server
+smartmeter serve
+
+# Opens browser to http://localhost:8080
+# Dashboard features:
+# - Live cost analytics
+# - Click "Apply Optimizations" button
+# - Export reports
+# - Preview config changes
+# All without leaving the browser!
+```
 
 ## Screenshots
 
 ### Dashboard Overview
+
 ![SmartMeter Dashboard](docs/screenshots/dashboard-overview.png)
-*Live-updating dashboard with cost savings, model breakdown, and actionable recommendations*
+_Live-updating dashboard with cost savings, model breakdown, and actionable recommendations_
 
 ### Cost Savings Analysis
+
 ![Cost Savings](docs/screenshots/dashboard-hero.png)
-*Real-time savings calculation showing 48% cost reduction with confidence indicators*
+_Real-time savings calculation showing 48% cost reduction with confidence indicators_
 
 ### Interactive Analytics
+
 ![Analytics Charts](docs/screenshots/dashboard-charts.png)
-*Model usage breakdown and task classification powered by Chart.js*
+_Model usage breakdown and task classification powered by Chart.js_
 
 ## How It Works
 
@@ -260,6 +339,7 @@ node --test --reporter spec tests/*.test.js
 ## Author
 
 **Vajih Khan**
+
 - LinkedIn: [linkedin.com/in/vajihkhan](https://www.linkedin.com/in/vajihkhan/)
 - Twitter: [@vajih](https://twitter.com/vajih)
 - GitHub: [@vajih](https://github.com/vajih)

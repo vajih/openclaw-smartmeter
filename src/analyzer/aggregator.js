@@ -1,3 +1,33 @@
+/**
+ * Cost Calculation Engine - Design & Assumptions
+ * 
+ * This module aggregates task-level cost and usage data into a comprehensive analysis.
+ * 
+ * ROUNDING STRATEGY:
+ * - All cost values are rounded to 4 decimal places (e.g., $0.0001)
+ * - This provides precision to 1/100th of a cent while preventing floating-point drift
+ * - Token counts are rounded to integers (no fractional tokens)
+ * - Percentages are rounded to 1 decimal (e.g., 42.7%)
+ * 
+ * CACHE SAVINGS ESTIMATION:
+ * - Assumption: Cached tokens cost ~10% of regular input token price
+ * - For mixed input/cache: Calculate price per input token from actual costs,
+ *   then estimate savings as: cacheRead × pricePerInputToken × 0.9
+ * - For 100% cached (no input): Current cost represents ~10% of full price,
+ *   so savings = currentCost × 9
+ * - This is conservative; actual cache pricing may vary by provider
+ * 
+ * MONTHLY EXTRAPOLATION:
+ * - Formula: (totalCost / daysInSample) × 30
+ * - Minimum sample period: 1 day (prevents division by zero)
+ * - Assumes consistent usage patterns; may be inaccurate for bursty workloads
+ * 
+ * COST ATTRIBUTION:
+ * - Each task must have a `cost` field (pre-calculated by provider)
+ * - Costs are summed at model/category/summary levels
+ * - No assumptions about per-token pricing (provider-agnostic)
+ */
+
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 /**
@@ -214,11 +244,21 @@ function aggregateCaching(tasks) {
   // Estimate savings: cached tokens cost ~10% of input price.
   // If they weren't cached, they'd cost full input price.
   // Savings = cacheRead * (inputPricePerToken * 0.9)
-  // We estimate inputPricePerToken from actual cost / actual input tokens.
   let estimatedCacheSavings = 0;
-  if (totalInput > 0 && totalCacheRead > 0) {
-    const pricePerInputToken = totalCost / (totalInput + totalCacheRead * 0.1);
-    estimatedCacheSavings = round(totalCacheRead * pricePerInputToken * 0.9);
+  
+  if (totalCacheRead > 0) {
+    if (totalInput > 0) {
+      // Normal case: mix of input and cached tokens
+      // We estimate inputPricePerToken from actual cost / actual input tokens
+      const pricePerInputToken = totalCost / (totalInput + totalCacheRead * 0.1);
+      estimatedCacheSavings = round(totalCacheRead * pricePerInputToken * 0.9);
+    } else if (totalCost > 0) {
+      // Edge case: all tokens are cached (totalInput = 0)
+      // Current cost represents cached tokens at ~10% of regular price
+      // Estimated full-price cost would be: totalCost / 0.1
+      // Savings = (totalCost / 0.1) - totalCost = totalCost * 9
+      estimatedCacheSavings = round(totalCost * 9);
+    }
   }
 
   return { hitRate, avgCacheRead, estimatedCacheSavings };
