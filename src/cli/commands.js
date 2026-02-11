@@ -143,8 +143,9 @@ Opening in your browser...
       process.on("SIGINT", shutdownHandler);
       process.on("SIGTERM", shutdownHandler);
 
-      // Store server references for cleanup
-      analysis._servers = { staticServer, apiServer };
+      // Keep process alive - wait indefinitely
+      // This prevents the CLI from exiting and killing the servers
+      await new Promise(() => {}); // Never resolves, keeps process alive
       
     } catch (err) {
       console.error(`\n⚠ Could not start dashboard: ${err.message}`);
