@@ -20,3 +20,4 @@ canvas-template/QUICK_START.md
 
 # Build artifacts
 *.tgz
+node_modules/
