@@ -484,21 +484,9 @@ export async function cmdServe(opts = {}) {
   console.log("\n🚀 Starting API server...");
   const apiServer = await startApiServer({ port: apiPort });
 
-  // Start static file server (using Python for simplicity)
-  const { spawn } = await import("node:child_process");
+  // Start static file server (using Node.js)
   console.log(`\n🚀 Starting dashboard server on port ${port}...`);
-  
-  const server = spawn("python3", [
-    "-m",
-    "http.server",
-    String(port),
-    "--directory",
-    deployer.canvasDir,
-  ]);
-
-  server.stdout.on("data", (data) => {
-    console.log(`Dashboard: ${data}`);
-  });
+  const staticServer = await startStaticFileServer(deployer.canvasDir, port);
 
   const url = `http://localhost:${port}`;
   console.log(`
@@ -531,11 +519,71 @@ Press Ctrl+C to stop all servers
   // Handle shutdown
   process.on("SIGINT", async () => {
     console.log("\n\n🛑 Shutting down servers...");
-    server.kill();
+    await staticServer.stop();
     await apiServer.stop();
     console.log("✓ Servers stopped");
     process.exit(0);
   });
 
-  return { url, apiPort, deployer, apiServer };
+  return { url, apiPort, deployer, apiServer, staticServer };
+}
+
+/**
+ * Start a simple static file server
+ */
+async function startStaticFileServer(directory, port) {
+  const { createServer } = await import("node:http");
+  const { readFile, stat } = await import("node:fs/promises");
+  const { join, extname } = await import("node:path");
+
+  const mimeTypes = {
+    '.html': 'text/html',
+    '.js': 'text/javascript',
+    '.css': 'text/css',
+    '.json': 'application/json',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.svg': 'image/svg+xml',
+    '.ico': 'image/x-icon',
+  };
+
+  const server = createServer(async (req, res) => {
+    try {
+      // Parse URL and handle root
+      let filePath = req.url === '/' ? '/index.html' : req.url;
+      filePath = join(directory, filePath);
+
+      // Check if file exists
+      const stats = await stat(filePath);
+      
+      if (stats.isDirectory()) {
+        filePath = join(filePath, 'index.html');
+      }
+
+      // Read and serve file
+      const content = await readFile(filePath);
+      const ext = extname(filePath);
+      const mimeType = mimeTypes[ext] || 'application/octet-stream';
+
+      res.writeHead(200, { 'Content-Type': mimeType });
+      res.end(content);
+    } catch (error) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('404 Not Found');
+    }
+  });
+
+  return new Promise((resolve, reject) => {
+    server.listen(port, (err) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve({
+          server,
+          stop: () => new Promise((res) => server.close(() => res())),
+        });
+      }
+    });
+  });
 }
