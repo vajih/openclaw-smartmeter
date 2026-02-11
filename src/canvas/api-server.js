@@ -228,7 +228,7 @@ export class ApiServer {
 - **Current Monthly Cost:** $${s.currentMonthlyCost.toFixed(2)}
 - **Optimized Monthly Cost:** $${s.optimizedMonthlyCost.toFixed(2)}
 - **Potential Savings:** $${s.potentialSavings.toFixed(2)}/month (${s.savingsPercentage.toFixed(1)}%)
-- **Confidence Level:** ${analysis.confidence.level}
+- **Confidence Level:** ${s.confidence || 'unknown'}
 
 ## Model Breakdown
 

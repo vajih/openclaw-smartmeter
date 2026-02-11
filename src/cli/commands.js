@@ -286,7 +286,7 @@ export async function cmdEvaluate(opts = {}) {
 📊 Current Analysis:
    Period: ${analysis.period.days} days (${analysis.period.start} to ${analysis.period.end})
    Tasks Analyzed: ${analysis.period.totalTasks}
-   Confidence: ${analysis.confidence.level}
+   Confidence: ${s.confidence || 'unknown'}
 
 💰 Cost Analysis:
    Current Monthly Cost:   $${s.currentMonthlyCost.toFixed(2)}
@@ -341,6 +341,8 @@ The analysis found **${analysis.period.totalTasks} tasks** across these categori
 ${Object.entries(analysis.categories || {})
   .map(([name, c]) => `  • ${name}: ${c.count} tasks`)
   .join("\n")}
+
+**Confidence Level:** ${analysis.summary.confidence || 'unknown'}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
