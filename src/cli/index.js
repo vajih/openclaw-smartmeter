@@ -29,7 +29,46 @@ const program = new Command();
 program
   .name("smartmeter")
   .description("Analyze OpenClaw usage and generate optimized configs to reduce AI costs")
-  .version(packageJson.version);
+  .version(packageJson.version)
+  .action(() => {
+    console.log(`
+╔════════════════════════════════════════════════════════╗
+║              Welcome to SmartMeter! 🎯                ║
+╚════════════════════════════════════════════════════════╝
+
+AI Cost Optimization for OpenClaw
+
+📊 Quick Start:
+
+  1️⃣  Analyze your usage and launch dashboard:
+     $ smartmeter analyze
+
+  2️⃣  Dashboard opens automatically in your browser
+     • View cost savings
+     • Apply optimizations
+     • Export reports
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📚 Other Commands:
+
+  evaluate  - Quick cost evaluation
+  guide     - Step-by-step optimization guide
+  preview   - Preview config changes
+  apply     - Apply optimizations
+  serve     - Start dashboard server
+  status    - Show current analysis
+  report    - Detailed cost breakdown
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 Need help with a specific command?
+   $ smartmeter <command> --help
+
+📖 Full documentation:
+   https://github.com/vajih/openclaw-smartmeter
+`);
+  });
 
 function dataDirOpts(cmdOpts) {
   if (!cmdOpts.dataDir) return {};
@@ -38,9 +77,12 @@ function dataDirOpts(cmdOpts) {
 
 program
   .command("analyze")
-  .description("Analyze usage patterns and generate report")
+  .description("Analyze usage patterns and launch interactive dashboard")
   .option("-d, --data-dir <path>", "OpenClaw data directory (default: ~/.openclaw)")
-  .action((opts) => cmdAnalyze(dataDirOpts(opts)));
+  .option("-p, --port <number>", "Dashboard port (default: 8080)")
+  .option("--api-port <number>", "API server port (default: 3001)")
+  .option("--no-dashboard", "Skip launching dashboard (analysis only)")
+  .action((opts) => cmdAnalyze({ ...dataDirOpts(opts), port: opts.port ? Number(opts.port) : undefined, apiPort: opts.apiPort ? Number(opts.apiPort) : undefined, noDashboard: opts.noDashboard }));
 
 program
   .command("show")

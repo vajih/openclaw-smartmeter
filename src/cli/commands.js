@@ -66,15 +66,95 @@ export async function cmdAnalyze(opts = {}) {
   const storageDir = opts.storageDir || SMARTMETER_DIR;
   await writeAnalysis(analysis, storageDir);
 
-  // Auto-update dashboard if canvas is deployed
-  const deployer = new CanvasDeployer();
-  if (await deployer.isDeployed()) {
-    await deployer.generatePublicAnalysis(analysis);
-    console.log("✓ Dashboard data updated");
-  }
-
   console.log(formatSummary(analysis));
   console.log(`\nAnalysis saved to ${storageDir}/analysis.json`);
+
+  // Auto-deploy dashboard and open in browser
+  const shouldOpenDashboard = opts.noDashboard !== true;
+  
+  if (shouldOpenDashboard) {
+    console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.log("🚀 Launching SmartMeter Dashboard...");
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+
+    try {
+      const deployer = new CanvasDeployer();
+      
+      // Deploy dashboard files
+      await deployer.deploy();
+      await deployer.generatePublicAnalysis(analysis);
+      
+      const port = opts.port || 8080;
+      const apiPort = opts.apiPort || 3001;
+      
+      // Start API server in background
+      console.log("✓ Starting API server...");
+      const apiServer = await startApiServer({ port: apiPort });
+      
+      // Start static file server in background
+      console.log("✓ Starting dashboard server...");
+      const staticServer = await startStaticFileServer(deployer.canvasDir, port);
+      
+      const url = `http://localhost:${port}`;
+      
+      console.log(`
+✅ Dashboard is live!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🌐 Dashboard URL: ${url}
+📡 API Server:    http://localhost:${apiPort}
+
+💡 Features:
+   • View cost savings and recommendations
+   • Apply optimizations with one click
+   • Export reports
+   • Preview config changes
+
+🔄 Dashboard updates automatically every 5 seconds
+
+Opening in your browser...
+`);
+
+      // Open browser
+      try {
+        await deployer.openDashboard(port);
+        console.log("✓ Browser opened\n");
+      } catch (err) {
+        console.log(`⚠ Could not open browser automatically`);
+        console.log(`  Please open manually: ${url}\n`);
+      }
+
+      console.log("💡 Tip: Press Ctrl+C to stop the servers");
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+
+      // Keep process alive and handle shutdown
+      const shutdownHandler = async () => {
+        console.log("\n\n🛑 Shutting down servers...");
+        try {
+          await staticServer.stop();
+          await apiServer.stop();
+          console.log("✓ Servers stopped");
+        } catch (err) {
+          console.error("Error stopping servers:", err.message);
+        }
+        process.exit(0);
+      };
+
+      process.on("SIGINT", shutdownHandler);
+      process.on("SIGTERM", shutdownHandler);
+
+      // Store server references for cleanup
+      analysis._servers = { staticServer, apiServer };
+      
+    } catch (err) {
+      console.error(`\n⚠ Could not start dashboard: ${err.message}`);
+      console.log(`\nYou can view your analysis by running:`);
+      console.log(`  smartmeter status`);
+      console.log(`\nOr start the dashboard manually:`);
+      console.log(`  smartmeter serve\n`);
+    }
+  }
+
   return analysis;
 }
 
