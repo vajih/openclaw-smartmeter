@@ -61,7 +61,26 @@ npm link
 
 ## Quick Start
 
-### 1. Analyze your usage
+### Super Simple - One Command! 🚀
+
+```bash
+# Install globally
+npm install -g openclaw-smartmeter
+
+# Run analysis - dashboard opens automatically in your browser!
+smartmeter analyze
+```
+
+That's it! The dashboard opens automatically with:
+
+- ✅ Cost savings visualization
+- ✅ One-click optimization application
+- ✅ Export reports
+- ✅ Live data updates
+
+### Detailed Workflow
+
+### 1. Analyze your usage (auto-opens dashboard)
 
 ```bash
 # Analyze default OpenClaw data (~/.openclaw)
@@ -84,7 +103,21 @@ Analysis: 2026-02-04 to 2026-02-05 (2 days)
   Confidence                optimistic
 ```
 
-### 2. Evaluate your configuration
+### 2. Use the Dashboard (already open!)
+
+The dashboard automatically opened in step 1, showing:
+- Cost savings overview with before/after comparison
+- Model usage breakdown (bar chart)
+- Task classification distribution (doughnut chart)  
+- Actionable recommendations with impact estimates
+- Auto-refresh every 5 seconds
+
+**Dashboard Actions:**
+- 🎯 **Apply Optimizations** - One click to apply all changes (creates backup)
+- 📄 **Export Report** - Download markdown report
+- ⚙️ **Preview Config** - See exact changes before applying
+
+### 3. Evaluate your configuration
 
 ```bash
 smartmeter evaluate
