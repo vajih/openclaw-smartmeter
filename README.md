@@ -42,6 +42,7 @@ The key insight: DeepSeek Chat handled 69% of tasks at 1/5th the cost of premium
 - **Cost Optimization** — Identify where expensive models are being used for simple tasks and recommend cheaper alternatives
 - **Config Generation** — Generate production-ready `openclaw.json` with primary model, fallback chains, specialized agents, budget controls, and caching settings
 - **Live Dashboard** — Interactive web dashboard deployed to OpenClaw Canvas with auto-refresh, charts, and actionable recommendations
+- **OpenRouter Integration** — Connect your OpenRouter API key to view actual usage and compare with analyzed session data
 - **Safe Rollback** — Every config change creates a timestamped backup; one command to roll back
 - **CLI Interface** — 8 commands covering the full workflow from analysis to deployment
 
@@ -319,11 +320,42 @@ Session Logs (.jsonl)
 - **Solution**: SmartMeter will detect this scenario and display professional messaging indicating that more usage data is needed or that cost tracking is limited
 
 **Data Requirements**: For accurate cost analysis, SmartMeter needs:
+
 - Minimum 5 tasks analyzed
 - At least 1 day of usage data
 - session files with non-zero cost values
 
 When these conditions aren't met, the dashboard displays a helpful message instead of misleading $0.00 values.
+
+### OpenRouter Live Usage Integration
+
+SmartMeter can connect to your OpenRouter account to fetch actual usage data and compare it with analyzed session data. This helps identify discrepancies and provides a complete picture of your AI costs.
+
+**Setting Up OpenRouter Integration:**
+
+1. **Get Your API Key**: Log in to [OpenRouter](https://openrouter.ai) and generate an API key from your account settings
+2. **Configure in Dashboard**: 
+   - Open SmartMeter dashboard (`smartmeter analyze`)
+   - Click "⚙️ Configure API Key" in the OpenRouter section
+   - Enter your OpenRouter API key (starts with `sk-or-`)
+   - Dashboard will validate and securely store it locally
+
+**What You'll See:**
+- **Actual Usage**: Real costs from your OpenRouter account
+- **Account Info**: Balance, usage, and account type
+- **Comparison**: Side-by-side view of analyzed vs actual costs
+- **Discrepancy Detection**: Highlights if session data doesn't match actual usage
+
+**Security:**
+- API key stored locally in `~/.openclaw/smartmeter/config.json`
+- Never transmitted to external services
+- Only used to fetch your usage data from OpenRouter
+- Can be removed anytime from the dashboard
+
+**API Endpoints:**
+- `GET /api/config/openrouter-key` - Check if key is configured
+- `POST /api/config/openrouter-key` - Set/validate API key
+- `GET /api/openrouter-usage` - Fetch actual usage data
 
 ## Architecture
 

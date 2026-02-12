@@ -49,6 +49,19 @@
                 </div>
             </div>
 
+            <!-- OpenRouter Live Usage Section -->
+            <section class="openrouter-section" id="openRouterSection" style="display: none;">
+                <div class="openrouter-card">
+                    <div class="openrouter-header">
+                        <h3>🔗 OpenRouter Actual Usage</h3>
+                        <button class="btn-config" onclick="openConfigModal()">⚙️ Configure API Key</button>
+                    </div>
+                    <div id="openRouterContent">
+                        <div class="openrouter-loading">Loading actual usage...</div>
+                    </div>
+                </div>
+            </section>
+
             <!-- Hero Section - Savings Display -->
             <section class="hero-card">
                 <div class="savings-display">
@@ -159,6 +172,29 @@
                 </div>
             </footer>
         </main>
+
+        <!-- OpenRouter API Key Configuration Modal -->
+        <div id="configModal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Configure OpenRouter API Key</h2>
+                    <button class="modal-close" onclick="closeConfigModal()">×</button>
+                </div>
+                <div class="modal-body">
+                    <p>Enter your OpenRouter API key to view actual usage and compare with analyzed data.</p>
+                    <div class="form-group">
+                        <label for="apiKeyInput">OpenRouter API Key:</label>
+                        <input type="password" id="apiKeyInput" placeholder="sk-or-v1-..." class="api-key-input">
+                        <small class="form-hint">Your API key is stored locally and never shared.</small>
+                    </div>
+                    <div id="configStatus" class="config-status"></div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closeConfigModal()">Cancel</button>
+                    <button class="btn btn-primary" onclick="saveApiKey()">Save & Validate</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Toast Notifications -->

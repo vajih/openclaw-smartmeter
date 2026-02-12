@@ -6,12 +6,15 @@ let modelChart = null;
 let taskChart = null;
 let activeTab = 'usage';
 let refreshInterval = null;
+let openRouterConfigured = false;
+let openRouterUsage = null;
 
 // Initialize dashboard on page load
 document.addEventListener('DOMContentLoaded', () => {
     console.log('SmartMeter Dashboard loading...');
     initializeDashboard();
     startAutoRefresh();
+    checkOpenRouterConfig();
 });
 
 // Initialize the dashboard
@@ -543,10 +546,223 @@ async function applyOptimizations() {
     }
 }
 
+// ============================================
+// OpenRouter Integration Functions
+// ============================================
+
+/**
+ * Check if OpenRouter API key is configured
+ */
+async function checkOpenRouterConfig() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/config/openrouter-key`);
+        if (response.ok) {
+            const data = await response.json();
+            openRouterConfigured = data.configured;
+            
+            if (openRouterConfigured) {
+                document.getElementById('openRouterSection').style.display = 'block';
+                await fetchOpenRouterUsage();
+            }
+        }
+    } catch (error) {
+        console.log('OpenRouter config check failed (API server may not be running):', error.message);
+    }
+}
+
+/**
+ * Fetch actual OpenRouter usage from API
+ */
+async function fetchOpenRouterUsage() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/openrouter-usage`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch OpenRouter usage');
+        }
+        
+        const data = await response.json();
+        openRouterUsage = data;
+        
+        updateOpenRouterDisplay(data);
+    } catch (error) {
+        console.error('Failed to fetch OpenRouter usage:', error);
+        updateOpenRouterDisplay({ success: false, error: error.message });
+    }
+}
+
+/**
+ * Update OpenRouter usage display in dashboard
+ */
+function updateOpenRouterDisplay(data) {
+    const content = document.getElementById('openRouterContent');
+    
+    if (!data.configured) {
+        content.innerHTML = `
+            <div class="openrouter-notice">
+                <p>⚙️ Configure your OpenRouter API key to view actual usage and compare with analyzed data.</p>
+                <button class="btn btn-primary" onclick="openConfigModal()">Configure API Key</button>
+            </div>
+        `;
+        return;
+    }
+    
+    if (!data.success) {
+        content.innerHTML = `
+            <div class="openrouter-error">
+                <p>❌ Error fetching OpenRouter usage: ${data.error || 'Unknown error'}</p>
+                <button class="btn btn-secondary" onclick="openConfigModal()">Update API Key</button>
+            </div>
+        `;
+        return;
+    }
+    
+    // Display actual usage
+    const totalSpent = data.totalSpent !== null ? `$${data.totalSpent.toFixed(4)}` : 'N/A';
+    const accountInfo = data.account || {};
+    
+    content.innerHTML = `
+        <div class="openrouter-data">
+            <div class="usage-grid">
+                <div class="usage-item">
+                    <div class="usage-label">Account</div>
+                    <div class="usage-value">${accountInfo.label || 'Unknown'}</div>
+                </div>
+                <div class="usage-item">
+                    <div class="usage-label">Total Spent</div>
+                    <div class="usage-value highlight">${totalSpent}</div>
+                </div>
+                <div class="usage-item">
+                    <div class="usage-label">Usage Balance</div>
+                    <div class="usage-value">${accountInfo.usageBalance !== null ? `$${(accountInfo.usageBalance / 100).toFixed(2)}` : 'N/A'}</div>
+                </div>
+                <div class="usage-item">
+                    <div class="usage-label">Account Type</div>
+                    <div class="usage-value">${accountInfo.isFreeTier ? 'Free Tier' : 'Paid'}</div>
+                </div>
+            </div>
+            ${getComparisonHtml(data)}
+            <div class="openrouter-footer">
+                <small>Last updated: ${new Date(data.timestamp).toLocaleString()}</small>
+                <button class="btn-link" onclick="fetchOpenRouterUsage()">🔄 Refresh</button>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Generate comparison HTML between analyzed and actual usage
+ */
+function getComparisonHtml(openRouterData) {
+    if (!currentData || !openRouterData.totalSpent) {
+        return '';
+    }
+    
+    const analyzed = currentData.monthly_projected_current;
+    const actual = openRouterData.totalSpent;
+    const difference = Math.abs(analyzed - actual);
+    const percentDiff = analyzed > 0 ? ((difference / analyzed) * 100).toFixed(1) : 0;
+    
+    return `
+        <div class="comparison-section">
+            <h4>📊 Comparison</h4>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <span class="comparison-label">SmartMeter Analyzed:</span>
+                    <span class="comparison-value">$${analyzed.toFixed(4)}</span>
+                </div>
+                <div class="comparison-item">
+                    <span class="comparison-label">OpenRouter Actual:</span>
+                    <span class="comparison-value">$${actual.toFixed(4)}</span>
+                </div>
+                <div class="comparison-item">
+                    <span class="comparison-label">Difference:</span>
+                    <span class="comparison-value ${analyzed > actual ? 'positive' : 'negative'}">
+                        ${analyzed > actual ? '-' : '+'}$${difference.toFixed(4)} (${percentDiff}%)
+                    </span>
+                </div>
+            </div>
+            ${analyzed === 0 && actual > 0 ? `
+                <div class="comparison-note">
+                    ℹ️ SmartMeter shows $0 because OpenRouter isn't including cost data in API responses. 
+                    Your actual usage is ${totalSpent} as shown above.
+                </div>
+            ` : ''}
+        </div>
+    `;
+}
+
+/**
+ * Open API key configuration modal
+ */
+function openConfigModal() {
+    document.getElementById('configModal').style.display = 'flex';
+    document.getElementById('configStatus').innerHTML = '';
+}
+
+/**
+ * Close API key configuration modal
+ */
+function closeConfigModal() {
+    document.getElementById('configModal').style.display = 'none';
+    document.getElementById('apiKeyInput').value = '';
+    document.getElementById('configStatus').innerHTML = '';
+}
+
+/**
+ * Save and validate API key
+ */
+async function saveApiKey() {
+    const apiKey = document.getElementById('apiKeyInput').value.trim();
+    const statusDiv = document.getElementById('configStatus');
+    
+    if (!apiKey) {
+        statusDiv.innerHTML = '<div class="status-error">⚠️ Please enter an API key</div>';
+        return;
+    }
+    
+    if (!apiKey.startsWith('sk-or-')) {
+        statusDiv.innerHTML = '<div class="status-error">⚠️ Invalid API key format (should start with "sk-or-")</div>';
+        return;
+    }
+    
+    statusDiv.innerHTML = '<div class="status-loading">⏳ Validating API key...</div>';
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/config/openrouter-key`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ apiKey })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            statusDiv.innerHTML = '<div class="status-success">✅ API key saved and validated!</div>';
+            setTimeout(() => {
+                closeConfigModal();
+                window.location.reload(); // Reload to show OpenRouter section
+            }, 1500);
+        } else {
+            statusDiv.innerHTML = `<div class="status-error">❌ ${data.error || 'Validation failed'}</div>`;
+        }
+    } catch (error) {
+        statusDiv.innerHTML = `<div class="status-error">❌ Failed to save: ${error.message}</div>`;
+    }
+}
+
 // Export functions for inline onclick handlers
 window.refreshDashboard = refreshDashboard;
 window.switchTab = switchTab;
 window.viewRecommendationDetails = viewRecommendationDetails;
 window.exportReport = exportReport;
+window.viewConfig = viewConfig;
+window.applyOptimizations = applyOptimizations;
+window.openConfigModal = openConfigModal;
+window.closeConfigModal = closeConfigModal;
+window.saveApiKey = saveApiKey;
+window.fetchOpenRouterUsage = fetchOpenRouterUsage;
+
 window.viewConfig = viewConfig;
 window.applyOptimizations = applyOptimizations;

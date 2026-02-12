@@ -9,6 +9,9 @@ import {
   cmdStatus,
 } from "../cli/commands.js";
 
+import { fetchOpenRouterUsage, isValidApiKeyFormat } from "../analyzer/openrouter-client.js";
+import { getOpenRouterApiKey, setOpenRouterApiKey, getConfig } from "../analyzer/config-manager.js";
+
 /**
  * Simple API server for SmartMeter dashboard.
  * Provides REST endpoints for the web UI to interact with CLI functions.
@@ -84,6 +87,12 @@ export class ApiServer {
       await this.handleEvaluate(req, res);
     } else if (path === "/api/export" && req.method === "GET") {
       await this.handleExport(req, res);
+    } else if (path === "/api/openrouter-usage" && req.method === "GET") {
+      await this.handleOpenRouterUsage(req, res);
+    } else if (path === "/api/config/openrouter-key" && req.method === "POST") {
+      await this.handleSetOpenRouterKey(req, res);
+    } else if (path === "/api/config/openrouter-key" && req.method === "GET") {
+      await this.handleGetOpenRouterKeyStatus(req, res);
     } else {
       this.sendError(res, 404, "Not found");
     }
@@ -256,6 +265,93 @@ ${analysis.recommendations.map((rec, i) => `${i + 1}. **${rec.title}**\n   ${rec
   }
 
   /**
+   * GET /api/openrouter-usage - Fetch actual OpenRouter usage
+   */
+  async handleOpenRouterUsage(req, res) {
+    try {
+      const apiKey = await getOpenRouterApiKey();
+      
+      if (!apiKey) {
+        this.sendJson(res, {
+          success: false,
+          configured: false,
+          message: "OpenRouter API key not configured"
+        });
+        return;
+      }
+
+      const usage = await fetchOpenRouterUsage(apiKey);
+      this.sendJson(res, {
+        success: true,
+        configured: true,
+        ...usage
+      });
+    } catch (error) {
+      this.sendJson(res, {
+        success: false,
+        configured: true,
+        error: error.message
+      });
+    }
+  }
+
+  /**
+   * POST /api/config/openrouter-key - Set OpenRouter API key
+   */
+  async handleSetOpenRouterKey(req, res) {
+    try {
+      const body = await this.parseBody(req);
+      const apiKey = body?.apiKey;
+
+      if (!apiKey) {
+        this.sendError(res, 400, "API key required");
+        return;
+      }
+
+      if (!isValidApiKeyFormat(apiKey)) {
+        this.sendError(res, 400, "Invalid API key format (should start with 'sk-or-')");
+        return;
+      }
+
+      // Test the key before saving
+      try {
+        await fetchOpenRouterUsage(apiKey);
+      } catch (error) {
+        this.sendError(res, 401, `API key validation failed: ${error.message}`);
+        return;
+      }
+
+      await setOpenRouterApiKey(apiKey);
+      
+      this.sendJson(res, {
+        success: true,
+        message: "OpenRouter API key saved and validated"
+      });
+    } catch (error) {
+      this.sendError(res, 500, error.message);
+    }
+  }
+
+  /**
+   * GET /api/config/openrouter-key - Check if OpenRouter key is configured
+   */
+  async handleGetOpenRouterKeyStatus(req, res) {
+    try {
+      const apiKey = await getOpenRouterApiKey();
+      const config = await getConfig();
+      
+      this.sendJson(res, {
+        success: true,
+        configured: !!apiKey,
+        keyPreview: apiKey ? `${apiKey.substring(0, 9)}...${apiKey.substring(apiKey.length - 4)}` : null,
+        enabledIntegration: config.enableOpenRouterIntegration !== false
+      });
+    } catch (error) {
+      this.sendError(res, 500, error.message);
+    }
+  }
+
+  /**
    * Parse JSON body from request
    */
   async parseBody(req) {
@@ -310,11 +406,14 @@ export async function startApiServer(opts = {}) {
 🚀 API Server: http://localhost:${port}
 
 📡 Available Endpoints:
-   GET  /api/status   - Current optimization status
-   GET  /api/preview  - Preview config changes
-   POST /api/apply    - Apply optimizations
-   GET  /api/evaluate - Evaluate configuration
-   GET  /api/export   - Export analysis report
+   GET  /api/status                  - Current optimization status
+   GET  /api/preview                 - Preview config changes
+   POST /api/apply                   - Apply optimizations
+   GET  /api/evaluate                - Evaluate configuration
+   GET  /api/export                  - Export analysis report
+   GET  /api/openrouter-usage        - Fetch actual OpenRouter usage
+   POST /api/config/openrouter-key   - Set OpenRouter API key
+   GET  /api/config/openrouter-key   - Check API key status
 
 Press Ctrl+C to stop
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
