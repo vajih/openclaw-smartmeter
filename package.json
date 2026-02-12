@@ -18,8 +18,24 @@
     "dashboard": "node src/cli/index.js dashboard",
     "dashboard:preview": "python3 canvas-template/preview-server.py"
   },
-  "keywords": ["openclaw", "ai-cost-optimization", "token-monitoring", "llm-costs", "cost-reduction"],
-  "author": "",
+  "keywords": [
+    "openclaw",
+    "openclaw-skill",
+    "ai-cost-optimization",
+    "token-monitoring",
+    "llm-costs",
+    "cost-reduction",
+    "budget-management",
+    "config-optimization"
+  ],
+  "openclaw": {
+    "skill": true,
+    "name": "smartmeter",
+    "category": "productivity",
+    "emoji": "💰",
+    "manifest": "SKILL.md"
+  },
+  "author": "vajihkhan <vajihkhan@gmail.com>",
   "license": "Apache-2.0",
   "type": "module",
   "repository": {

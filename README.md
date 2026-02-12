@@ -48,6 +48,20 @@ The key insight: DeepSeek Chat handled 69% of tasks at 1/5th the cost of premium
 
 ## Installation
 
+### Via ClawHub (Recommended for OpenClaw Users)
+
+```bash
+npx clawhub@latest install smartmeter
+```
+
+### Via npm (Global Installation)
+
+```bash
+npm install -g openclaw-smartmeter
+```
+
+### Manual Installation
+
 ```bash
 git clone https://github.com/vajih/openclaw-smartmeter.git
 cd openclaw-smartmeter
