@@ -1,6 +1,6 @@
 {
   "name": "openclaw-smartmeter",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "AI cost optimization for OpenClaw - analyze usage and reduce costs by 48%",
   "main": "src/cli/index.js",
   "bin": {
