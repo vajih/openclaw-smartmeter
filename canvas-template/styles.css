@@ -860,6 +860,11 @@ a:hover { color: var(--accent-hover); }
   background: var(--green-subtle);
   color: var(--green);
 }
+.config-status.validating {
+  display: block;
+  background: var(--indigo-subtle, rgba(99,102,241,.08));
+  color: var(--text-secondary);
+}
 
 /* Code block */
 .code-block {

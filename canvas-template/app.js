@@ -111,16 +111,17 @@ function normalizeApiData(api) {
 /* ─── Render All ─── */
 function renderAll() {
   if (!analysisData) return;
-  updateKPIs();
-  updateMetrics();
-  updateCharts();
-  updateRecommendations();
-  updateModelRecommendations();
-  updateOtherRecommendations();
-  updateBudgetControls();
-  updateModelDetails();
-  updateLastUpdated();
-  checkCostDataNotice();
+  const safe = fn => { try { fn(); } catch (e) { console.error(`[SmartMeter] ${fn.name} error:`, e); } };
+  safe(updateKPIs);
+  safe(updateMetrics);
+  safe(updateCharts);
+  safe(updateRecommendations);
+  safe(updateModelRecommendations);
+  safe(updateOtherRecommendations);
+  safe(updateBudgetControls);
+  safe(updateModelDetails);
+  safe(updateLastUpdated);
+  safe(checkCostDataNotice);
 }
 
 /* ─── KPIs ─── */
@@ -440,7 +441,7 @@ function updateModelRecommendations() {
                   ${alt.isRecommended ? '<span class="model-tag best-tag">RECOMMENDED</span>' : ''}
                 </div>
                 <div class="model-alt-meta">
-                  Quality: ${renderQualityDots(alt.quality_score)} · ${escHtml(alt.speed)} · Best for: ${alt.best_for.join(', ')}
+                  Quality: ${renderQualityDots(alt.quality_score)} · ${escHtml(alt.speed || '')} · Best for: ${(alt.best_for || []).join(', ')}
                 </div>
               </div>
               <div class="model-alt-cost">
@@ -877,10 +878,13 @@ async function fetchOpenRouterUsage() {
 /* ─── Config Modal ─── */
 function openConfigModal() {
   document.getElementById('configModal').style.display = 'flex';
-  document.getElementById('apiKeyInput').focus();
+  const input = document.getElementById('apiKeyInput');
+  const stored = localStorage.getItem('smartmeter_openrouter_key');
+  if (stored && !input.value) input.value = stored;
+  input.focus();
   const status = document.getElementById('configStatus');
   status.className = 'config-status';
-  status.style.display = 'none';
+  status.style.removeProperty('display');
 }
 function closeConfigModal() {
   document.getElementById('configModal').style.display = 'none';
@@ -890,22 +894,28 @@ async function saveApiKey() {
   const key = document.getElementById('apiKeyInput').value.trim();
   const status = document.getElementById('configStatus');
 
+  function showStatus(msg, type) {
+    status.textContent = msg;
+    status.className = 'config-status ' + type;
+    status.style.removeProperty('display');
+  }
+
   if (!key) {
-    status.textContent = 'Please enter an API key.';
-    status.className = 'config-status error';
+    showStatus('Please enter an API key.', 'error');
     return;
   }
 
   if (!key.startsWith('sk-or-')) {
-    status.textContent = 'Invalid format — key should start with sk-or-';
-    status.className = 'config-status error';
+    showStatus('Invalid format — key should start with sk-or-', 'error');
     return;
   }
 
-  status.textContent = 'Validating…';
-  status.className = 'config-status';
-  status.style.display = 'block';
+  showStatus('Validating…', 'validating');
 
+  let validated = false;
+  let errorMsg = '';
+
+  // Try API server first
   try {
     const res = await fetch(`${API_BASE_URL}/api/config/openrouter-key`, {
       method: 'POST',
@@ -914,20 +924,40 @@ async function saveApiKey() {
     });
     const json = await res.json();
     if (json.success) {
-      status.textContent = '✅ API key saved and validated!';
-      status.className = 'config-status success';
-      setTimeout(() => {
-        closeConfigModal();
-        fetchOpenRouterUsage();
-        navigateTo('openrouter');
-      }, 1200);
+      validated = true;
     } else {
-      status.textContent = `❌ ${json.error || 'Validation failed'}`;
-      status.className = 'config-status error';
+      errorMsg = json.error || 'Validation failed';
     }
-  } catch (err) {
-    status.textContent = `❌ Network error: ${err.message}`;
-    status.className = 'config-status error';
+  } catch (_) {
+    // API server not available — validate directly against OpenRouter
+    try {
+      const res = await fetch('https://openrouter.ai/api/v1/auth/key', {
+        headers: { 'Authorization': `Bearer ${key}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        validated = !!(data && data.data);
+        if (!validated) errorMsg = 'Key not recognized by OpenRouter';
+      } else if (res.status === 401 || res.status === 403) {
+        errorMsg = 'Invalid API key — authentication failed';
+      } else {
+        errorMsg = `OpenRouter returned status ${res.status}`;
+      }
+    } catch (e2) {
+      errorMsg = 'Could not reach OpenRouter to validate — check your connection';
+    }
+  }
+
+  if (validated) {
+    localStorage.setItem('smartmeter_openrouter_key', key);
+    showStatus('✅ API key saved and validated!', 'success');
+    setTimeout(() => {
+      closeConfigModal();
+      fetchOpenRouterUsage();
+      navigateTo('openrouter');
+    }, 1200);
+  } else {
+    showStatus(`❌ ${errorMsg}`, 'error');
   }
 }
 
