@@ -43,6 +43,7 @@ SmartMeter helps you save money on AI API costs by:
 ### Real-World Results
 
 Tested on live OpenClaw data:
+
 - **Current cost:** $59.97/month
 - **Optimized cost:** $31.14/month
 - **Savings:** $28.82/month (48.1%)
@@ -85,6 +86,7 @@ smartmeter analyze
 ```
 
 This will:
+
 - ✅ Analyze your OpenClaw usage logs
 - ✅ Calculate potential savings
 - ✅ Generate recommendations
@@ -92,6 +94,7 @@ This will:
 - ✅ Show real-time cost breakdown
 
 The dashboard opens at [http://localhost:8080](http://localhost:8080) with:
+
 - Cost savings visualization
 - Model usage breakdown
 - One-click optimization
@@ -141,24 +144,28 @@ smartmeter --help
 ## Features
 
 ### 📊 Usage Analysis
+
 - Parse JSONL session logs from `~/.openclaw/agents/*/sessions/`
 - Extract model usage, token counts, costs, and cache performance
 - Track usage across all agents and time periods
 - Minimum 2 days recommended, 14+ days for best results
 
 ### 🎯 Task Classification
+
 - Automatically categorize tasks: code, writing, research, config, other
 - Keyword-based classification using prompts and tool usage
 - Identify patterns in AI agent behavior
 - Success rate tracking by model and category
 
 ### 💡 Cost Optimization
+
 - Identify expensive models used for simple tasks
 - Recommend cheaper alternatives with same quality
 - Calculate potential savings with confidence levels
 - Generate specialized agents for different workloads
 
 ### ⚙️ Config Generation
+
 - Production-ready `openclaw.json` generation
 - Primary model optimization based on analysis
 - Specialized agent creation (code-reviewer, researcher, quick-tasks)
@@ -167,6 +174,7 @@ smartmeter --help
 - Fallback chains for reliability
 
 ### 🎨 Interactive Dashboard
+
 - Real-time cost breakdown and projections
 - Visual charts for model usage and savings
 - One-click optimization application
@@ -175,6 +183,7 @@ smartmeter --help
 - Responsive design (mobile, tablet, desktop)
 
 ### 🔐 Safe Deployment
+
 - Automatic config backups before changes
 - Timestamped backup files
 - One-command rollback: `smartmeter rollback`
@@ -182,6 +191,7 @@ smartmeter --help
 - Merge with existing configs (preserves custom settings)
 
 ### 🔌 OpenRouter Integration
+
 - Connect your OpenRouter API key
 - View actual usage vs. projected
 - Real-time budget monitoring
@@ -206,6 +216,7 @@ smartmeter config --key or-v1-xxxxxxxxxxxx
 ### Dashboard Configuration
 
 The dashboard server runs on:
+
 - **Dashboard:** http://localhost:8080
 - **API Server:** http://localhost:3001
 
@@ -216,12 +227,15 @@ To change ports, edit `~/.openclaw/smartmeter/config.json`
 ## How It Works
 
 ### 1. Data Collection
+
 SmartMeter reads your OpenClaw session logs:
+
 ```
 ~/.openclaw/agents/*/sessions/*.jsonl
 ```
 
 Each log entry contains:
+
 - Model used
 - Tokens (input, output, cache)
 - Cost breakdown
@@ -230,13 +244,16 @@ Each log entry contains:
 - Timestamps
 
 ### 2. Analysis Engine
+
 - **Parser:** Extracts usage data from JSONL logs
 - **Classifier:** Categorizes tasks by type (code, writing, research, etc.)
 - **Aggregator:** Calculates costs, averages, and patterns
 - **Recommender:** Generates optimization suggestions
 
 ### 3. Optimization Logic
+
 For each task category:
+
 - Analyze current model usage
 - Calculate success rates
 - Compare costs vs. quality
@@ -244,6 +261,7 @@ For each task category:
 - Estimate savings
 
 Example:
+
 ```
 Category: code
 Current: Claude Opus 4.5 ($0.80/task)
@@ -256,6 +274,7 @@ Savings: $0.42/task × 200 tasks = $84/month (52.5%)
 ```
 
 ### 4. Config Generation
+
 Creates optimized `openclaw.json`:
 
 ```json
@@ -267,8 +286,8 @@ Creates optimized `openclaw.json`:
         "fallback": ["claude-sonnet-4-5", "claude-opus-4-5"]
       },
       "budget": {
-        "daily": 5.00,
-        "weekly": 30.00,
+        "daily": 5.0,
+        "weekly": 30.0,
         "alert": {
           "telegram": true,
           "threshold": 0.75
@@ -278,12 +297,12 @@ Creates optimized `openclaw.json`:
     "code-reviewer": {
       "model": "claude-sonnet-4-5",
       "description": "Handles code review, debugging, and programming tasks",
-      "budget": { "daily": 2.00 }
+      "budget": { "daily": 2.0 }
     },
     "quick-tasks": {
       "model": "deepseek/chat",
       "description": "Simple queries, quick answers, config changes",
-      "budget": { "daily": 0.50 }
+      "budget": { "daily": 0.5 }
     }
   }
 }
@@ -294,30 +313,35 @@ Creates optimized `openclaw.json`:
 ## Dashboard Guide
 
 ### Cost Overview
+
 - Current monthly projection
 - Optimized projection
 - Potential savings ($ and %)
 - Confidence level
 
 ### Model Breakdown
+
 - Usage by model
 - Token counts
 - Cost per model
 - Success rates
 
 ### Recommendations
+
 - Actionable optimization suggestions
 - Expected savings per recommendation
 - One-click implementation
 - Risk level indicators
 
 ### Charts & Visualizations
+
 - Cost trends over time
 - Model usage distribution
 - Task category breakdown
 - Cache hit rate analysis
 
 ### Actions
+
 - **Preview:** See changes before applying
 - **Apply:** Implement optimizations (creates backup)
 - **Export:** Download analysis as JSON/CSV
@@ -328,18 +352,22 @@ Creates optimized `openclaw.json`:
 ## Best Practices
 
 ### Data Requirements
+
 - **Minimum:** 2 days of usage data
 - **Recommended:** 14+ days for accurate patterns
 - **Optimal:** 30+ days for seasonal variations
 
 ### Analysis Timing
+
 Run analysis:
+
 - After major project milestones
 - Monthly for budget reviews
 - When costs seem high
 - Before scaling usage
 
 ### Safety Tips
+
 - Always preview before applying
 - Keep backups (automatic)
 - Start with conservative settings
@@ -347,6 +375,7 @@ Run analysis:
 - Roll back if quality degrades
 
 ### Optimization Strategy
+
 1. **Phase 1:** Replace expensive models for simple tasks
 2. **Phase 2:** Create specialized agents
 3. **Phase 3:** Optimize caching and budgets
@@ -357,6 +386,7 @@ Run analysis:
 ## Troubleshooting
 
 ### Dashboard Not Loading
+
 ```bash
 # Check if servers are running
 ps aux | grep node
@@ -367,6 +397,7 @@ smartmeter analyze
 ```
 
 ### No Session Data Found
+
 ```bash
 # Check if session logs exist
 ls -la ~/.openclaw/agents/*/sessions/
@@ -376,6 +407,7 @@ smartmeter analyze examples/sample-session.jsonl
 ```
 
 ### OpenRouter API Errors
+
 ```bash
 # Verify API key
 echo $OPENROUTER_API_KEY
@@ -386,6 +418,7 @@ curl -H "Authorization: Bearer $OPENROUTER_API_KEY" \
 ```
 
 ### Apply Failed
+
 ```bash
 # Check config backup
 ls -la ~/.openclaw/openclaw.json.backup-*
@@ -402,69 +435,86 @@ cat ~/.openclaw/openclaw.json | jq '.'
 ## Command Reference
 
 ### `smartmeter analyze [file]`
+
 Analyze OpenClaw usage and launch dashboard.
 
 **Options:**
+
 - `[file]` - Optional path to specific session file
 - Without file: analyzes all sessions in `~/.openclaw/agents/`
 
 **Output:**
+
 - Analysis saved to `~/.openclaw/smartmeter/analysis.json`
 - Dashboard opens at http://localhost:8080
 - API server starts on port 3001
 
 ### `smartmeter preview`
+
 Preview optimizations without applying.
 
 **Shows:**
+
 - Proposed config changes
 - Expected savings
 - Risk assessment
 - Confidence levels
 
 ### `smartmeter apply`
+
 Apply optimizations to `openclaw.json`.
 
 **Safety:**
+
 - Creates backup: `openclaw.json.backup-{timestamp}`
 - Validates config before applying
 - Merges with existing settings
 - Preserves custom configurations
 
 ### `smartmeter rollback`
+
 Restore previous configuration.
 
 **Process:**
+
 - Lists available backups
 - Restores most recent by default
 - Verifies restoration success
 
 ### `smartmeter dashboard`
+
 Open dashboard without re-analyzing.
 
 **Requirements:**
+
 - Previous analysis must exist
 - Servers start automatically
 
 ### `smartmeter evaluate <file>`
+
 Quick cost evaluation of session file.
 
 **Use Case:**
+
 - One-off analysis
 - Testing with sample data
 - CI/CD cost checks
 
 ### `smartmeter export`
+
 Export analysis data.
 
 **Options:**
+
 - `--format json|csv` - Output format
 - `--output <file>` - Destination file
 
 ### `smartmeter config`
+
 Manage SmartMeter configuration.
 
 **Subcommands:**
+
 - `--key <api-key>` - Store OpenRouter API key
 - `--show` - Display current config
 - `--reset` - Reset to defaults
@@ -474,6 +524,7 @@ Manage SmartMeter configuration.
 ## Examples
 
 ### Basic Usage
+
 ```bash
 # Install
 npm install -g openclaw-smartmeter
@@ -486,6 +537,7 @@ smartmeter apply
 ```
 
 ### Advanced Workflow
+
 ```bash
 # Analyze specific session
 smartmeter analyze ~/.openclaw/agents/my-agent/sessions/session-123.jsonl
@@ -504,6 +556,7 @@ smartmeter rollback
 ```
 
 ### Continuous Monitoring
+
 ```bash
 # Weekly analysis (add to cron)
 0 0 * * 0 smartmeter analyze && smartmeter export --format csv --output weekly-report.csv
@@ -519,21 +572,27 @@ smartmeter monitor --alert-threshold 0.75
 ## FAQ
 
 ### Will this affect my AI quality?
+
 No. SmartMeter only recommends changes when cheaper models achieve the same success rate. You can always preview before applying.
 
 ### How much data is needed?
+
 Minimum 2 days, but 14+ days recommended for accurate patterns. The tool will warn if data is insufficient.
 
 ### Is my data safe?
+
 Yes. All analysis happens locally on your machine. No data is sent to external servers except OpenRouter API (if you configure it).
 
 ### Can I undo changes?
+
 Yes. Every change creates an automatic backup. Use `smartmeter rollback` to restore.
 
 ### Does it work with other AI providers?
+
 Currently optimized for OpenRouter, but works with any provider supported by OpenClaw.
 
 ### What if I use custom agents?
+
 SmartMeter merges with your existing config and preserves custom settings. It only modifies cost-related fields.
 
 ---
@@ -568,6 +627,7 @@ Found a bug? Have a feature request?
 ## Changelog
 
 ### v0.3.0 (February 11, 2026)
+
 - ✨ OpenRouter API integration
 - 🎨 Professional UI redesign
 - 🐛 Fixed apply optimization feature
@@ -575,13 +635,16 @@ Found a bug? Have a feature request?
 - 🔒 Improved config validation
 
 ### v0.2.4
+
 - 💄 UX improvements for cost display
 - 🐛 Zero-cost scenario handling
 
 ### v0.2.3
+
 - 🐛 Critical bug fix: keep analyze command alive
 
 ### v0.2.2
+
 - 📦 Initial public release
 - ✨ Core analysis and optimization engine
 - 🎨 Basic dashboard UI

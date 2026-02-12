@@ -66,7 +66,10 @@ test("aggregate computes per-category stats with model breakdown", () => {
   assert.equal(result.categories.code.count, 3);
   assert.equal(result.categories.code.modelBreakdown.sonnet.count, 2);
   assert.equal(result.categories.code.modelBreakdown.sonnet.avgCost, 0.03);
-  assert.equal(result.categories.code.modelBreakdown.sonnet.successRate, null);
+  // successRate is now estimated heuristically (not null)
+  assert.equal(typeof result.categories.code.modelBreakdown.sonnet.successRate, "number");
+  assert.ok(result.categories.code.modelBreakdown.sonnet.successRate > 0);
+  assert.ok(result.categories.code.modelBreakdown.sonnet.successRate <= 1);
   assert.deepEqual(result.categories.code.modelBreakdown.sonnet.avgTokens, { input: 1000, output: 200 });
   assert.equal(result.categories.code.modelBreakdown.opus.count, 1);
   assert.equal(result.categories.write.count, 1);

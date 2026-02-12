@@ -1,775 +1,1113 @@
-// SmartMeter Dashboard Application
-// Polls analysis.public.json every 5 seconds and updates the dashboard
+/**
+ * SmartMeter Dashboard — app.js
+ * Fully redesigned: sidebar nav, editable recommendations, modern UI
+ */
 
-let currentData = null;
+/* ─── Globals ─── */
+const API_BASE_URL = `http://localhost:${window.__SMARTMETER_API_PORT || 3001}`;
+let analysisData = null;
 let modelChart = null;
 let taskChart = null;
-let activeTab = 'usage';
-let refreshInterval = null;
-let openRouterConfigured = false;
-let openRouterUsage = null;
+let autoRefreshTimer = null;
+let editedRecommendations = {}; // keyed by index
+let selectedModels = {};        // keyed by category, stores chosen model id
+let budgetState = {};           // current budget control values
 
-// Initialize dashboard on page load
+/* ─── Init ─── */
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('SmartMeter Dashboard loading...');
-    initializeDashboard();
-    startAutoRefresh();
-    checkOpenRouterConfig();
+  initializeDashboard();
 });
 
-// Initialize the dashboard
 async function initializeDashboard() {
-    try {
-        await refreshDashboard();
-        hideLoading();
-    } catch (error) {
-        console.error('Failed to initialize dashboard:', error);
-        showToast('Failed to load dashboard data', 'error');
-        hideLoading();
-    }
+  try {
+    // Try to load data from local file first (works when served statically)
+    await loadAnalysisData();
+    hideLoading();
+    checkOpenRouterConfig();
+    startAutoRefresh();
+  } catch (err) {
+    console.error('Init error:', err);
+    hideLoading();
+    showToast('Failed to load dashboard data');
+  }
 }
 
-// Start auto-refresh every 5 seconds
-function startAutoRefresh() {
-    refreshInterval = setInterval(async () => {
-        try {
-            await refreshDashboard(true); // Silent refresh
-        } catch (error) {
-            console.error('Auto-refresh failed:', error);
-        }
-    }, 5000);
-}
-
-// Refresh dashboard data
-async function refreshDashboard(silent = false) {
-    try {
-        if (!silent) {
-            console.log('Fetching analysis data...');
-        }
-        
-        const response = await fetch('./analysis.public.json');
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        currentData = data;
-        
-        // Update all dashboard components
-        updateHeroCard(data);
-        updateStatsCards(data);
-        updateCharts(data);
-        updateRecommendations(data);
-        updateDetailsTab(data);
-        updateLastUpdated();
-        
-        if (!silent) {
-            console.log('Dashboard updated successfully');
-        }
-    } catch (error) {
-        console.error('Error fetching data:', error);
-        if (!silent) {
-            showToast('Could not load analysis data. Make sure SmartMeter has run.', 'error');
-        }
-    }
-}
-
-// Update hero card (savings display)
-function updateHeroCard(data) {
-    const savings = data.monthly_projected_current - data.monthly_projected_optimized;
-    const savingsPercent = ((savings / data.monthly_projected_current) * 100).toFixed(1);
-    
-    // Check if we have insufficient data for meaningful analysis
-    const hasInsufficientData = isInsufficientData(data);
-    
-    // Show cost data notice if costs are zero but we have usage
-    const costDataNotice = document.getElementById('costDataNotice');
-    if (data.monthly_projected_current === 0 && data.total_tasks > 0) {
-        costDataNotice.style.display = 'flex';
-    } else {
-        costDataNotice.style.display = 'none';
-    }
-    
-    if (hasInsufficientData) {
-        // Show professional message about needing more data
-        document.getElementById('savingsAmount').textContent = '📊';
-        document.getElementById('savingsPercentage').textContent = 'Analyzing...';
-        document.getElementById('currentCost').innerHTML = '<span class="insufficient-data">Insufficient data</span>';
-        document.getElementById('optimizedCost').innerHTML = '<span class="insufficient-data">Gathering usage...</span>';
-        
-        // Show helpful message in confidence badge
-        const badge = document.getElementById('confidenceBadge');
-        badge.innerHTML = `
-            <span class="confidence-icon">💡</span>
-            <span class="confidence-text">Need more usage data for accurate cost analysis (${data.total_tasks} tasks, ${data.days_analyzed} days so far)</span>
-        `;
-    } else {
-        // Normal display with actual costs
-        document.getElementById('savingsAmount').textContent = `$${savings.toFixed(2)}/mo`;
-        document.getElementById('savingsPercentage').textContent = `${savingsPercent}% savings`;
-        document.getElementById('currentCost').textContent = `$${data.monthly_projected_current.toFixed(2)}/mo`;
-        document.getElementById('optimizedCost').textContent = `$${data.monthly_projected_optimized.toFixed(2)}/mo`;
-        
-        // Update confidence badge
-        const badge = document.getElementById('confidenceBadge');
-        const confidenceText = getConfidenceText(data.confidence_level, data.days_analyzed);
-        badge.innerHTML = `
-            <span class="confidence-icon">${getConfidenceIcon(data.confidence_level)}</span>
-            <span class="confidence-text">${confidenceText}</span>
-        `;
-    }
-}
-
-// Update stats cards
-function updateStatsCards(data) {
-    document.getElementById('analysisPeriod').textContent = `${data.days_analyzed} days`;
-    document.getElementById('totalTasks').textContent = data.total_tasks;
-    document.getElementById('cacheHitRate').textContent = `${(data.cache_hit_rate * 100).toFixed(1)}%`;
-    document.getElementById('dailySpend').textContent = `$${data.daily_average.toFixed(2)}`;
-}
-
-// Update Chart.js charts
-function updateCharts(data) {
-    // Model Usage Chart
-    if (modelChart) {
-        modelChart.destroy();
-    }
-    
-    const modelCtx = document.getElementById('modelChart').getContext('2d');
-    const modelColors = [
-        '#16a34a', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'
-    ];
-    
-    modelChart = new Chart(modelCtx, {
-        type: 'bar',
-        data: {
-            labels: data.model_breakdown.map(m => m.model),
-            datasets: [{
-                label: 'Cost ($)',
-                data: data.model_breakdown.map(m => m.cost),
-                backgroundColor: modelColors,
-                borderRadius: 6
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    callbacks: {
-                        afterLabel: function(context) {
-                            const model = data.model_breakdown[context.dataIndex];
-                            return [
-                                `Tasks: ${model.tasks}`,
-                                `Avg: $${model.avg_cost_per_task.toFixed(3)}`
-                            ];
-                        }
-                    }
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        callback: function(value) {
-                            return '$' + value.toFixed(2);
-                        }
-                    }
-                }
-            }
-        }
-    });
-    
-    // Task Classification Chart
-    if (taskChart) {
-        taskChart.destroy();
-    }
-    
-    const taskCtx = document.getElementById('taskChart').getContext('2d');
-    const taskColors = ['#16a34a', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6'];
-    
-    taskChart = new Chart(taskCtx, {
-        type: 'doughnut',
-        data: {
-            labels: data.task_breakdown.map(t => t.type),
-            datasets: [{
-                data: data.task_breakdown.map(t => t.count),
-                backgroundColor: taskColors,
-                borderWidth: 2,
-                borderColor: '#fff'
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    position: 'right',
-                    labels: {
-                        padding: 15,
-                        font: { size: 13 }
-                    }
-                },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            const task = data.task_breakdown[context.dataIndex];
-                            const percentage = ((task.count / data.total_tasks) * 100).toFixed(1);
-                            return `${task.type}: ${task.count} (${percentage}%)`;
-                        }
-                    }
-                }
-            }
-        }
-    });
-}
-
-// Update recommendations section
-function updateRecommendations(data) {
-    const container = document.getElementById('recommendationsList');
-    
-    if (!data.recommendations || data.recommendations.length === 0) {
-        container.innerHTML = '<p style="color: var(--text-secondary);">No recommendations available yet. Run analysis again after collecting more data.</p>';
+/* ─── Data Loading ─── */
+async function loadAnalysisData() {
+  try {
+    // First try the API
+    const res = await fetch(`${API_BASE_URL}/api/status`, { signal: AbortSignal.timeout(3000) });
+    if (res.ok) {
+      const json = await res.json();
+      if (json.success && json.analysis) {
+        analysisData = normalizeApiData(json.analysis);
+        renderAll();
         return;
+      }
     }
-    
-    container.innerHTML = data.recommendations.map((rec, index) => `
-        <div class="recommendation-item">
-            <div class="recommendation-header">
-                <div class="recommendation-title">
-                    <span>${getRecommendationIcon(rec.type)}</span>
-                    <span>${rec.title}</span>
-                </div>
-                <div class="recommendation-impact">Saves ${rec.impact}</div>
-            </div>
-            <div class="recommendation-description">${rec.description}</div>
-            ${rec.details ? `
-                <div class="recommendation-details">
-                    ${rec.details.map(d => `<span>• ${d}</span>`).join('')}
-                </div>
-            ` : ''}
-            <div class="recommendation-actions">
-                <button class="btn btn-secondary btn-sm" onclick="viewRecommendationDetails(${index})">
-                    View Details
-                </button>
-            </div>
-        </div>
-    `).join('');
-}
+  } catch {
+    // API not available — try local file
+  }
 
-// Update details tab content
-function updateDetailsTab(data) {
-    switchTab(activeTab);
-}
-
-// Switch between detail tabs
-function switchTab(tab) {
-    activeTab = tab;
-    
-    // Update active button
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.classList.remove('active');
-    });
-    event?.target?.classList.add('active');
-    
-    const content = document.getElementById('detailsContent');
-    
-    if (!currentData) {
-        content.innerHTML = '<p>No data available</p>';
-        return;
+  // Fallback: load public JSON
+  try {
+    const res = await fetch('analysis.public.json');
+    if (res.ok) {
+      analysisData = await res.json();
+      renderAll();
+      return;
     }
-    
-    switch(tab) {
-        case 'usage':
-            content.innerHTML = generateUsageDetails(currentData);
-            break;
-        case 'models':
-            content.innerHTML = generateModelDetails(currentData);
-            break;
-        case 'timeline':
-            content.innerHTML = generateTimelineDetails(currentData);
-            break;
-    }
+  } catch {
+    // noop
+  }
+
+  console.warn('No analysis data available');
 }
 
-// Generate usage details HTML
-function generateUsageDetails(data) {
-    return `
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
-            <div>
-                <h4 style="margin-bottom: 12px; color: var(--text-primary);">Cost Breakdown</h4>
-                <table style="width: 100%; font-size: 14px;">
-                    <tr><td>Daily Average:</td><td style="text-align: right; font-weight: 600;">$${data.daily_average.toFixed(2)}</td></tr>
-                    <tr><td>Weekly Projected:</td><td style="text-align: right; font-weight: 600;">$${data.weekly_projected.toFixed(2)}</td></tr>
-                    <tr><td>Monthly Projected:</td><td style="text-align: right; font-weight: 600;">$${data.monthly_projected_current.toFixed(2)}</td></tr>
-                    <tr style="border-top: 2px solid var(--border-color); font-weight: 700; color: var(--success-color);">
-                        <td style="padding-top: 8px;">Optimized Monthly:</td>
-                        <td style="text-align: right; padding-top: 8px;">$${data.monthly_projected_optimized.toFixed(2)}</td>
-                    </tr>
-                </table>
-            </div>
-            <div>
-                <h4 style="margin-bottom: 12px; color: var(--text-primary);">Performance Metrics</h4>
-                <table style="width: 100%; font-size: 14px;">
-                    <tr><td>Cache Hit Rate:</td><td style="text-align: right; font-weight: 600;">${(data.cache_hit_rate * 100).toFixed(1)}%</td></tr>
-                    <tr><td>Total Tasks:</td><td style="text-align: right; font-weight: 600;">${data.total_tasks}</td></tr>
-                    <tr><td>Analysis Period:</td><td style="text-align: right; font-weight: 600;">${data.days_analyzed} days</td></tr>
-                    <tr><td>Confidence Level:</td><td style="text-align: right; font-weight: 600;">${data.confidence_level}</td></tr>
-                </table>
-            </div>
-        </div>
-    `;
+function normalizeApiData(api) {
+  // Reshape API /status data → same shape as analysis.public.json
+  const s = api.summary || {};
+  const p = api.period || {};
+  return {
+    version: api.version || '0.1.0',
+    generated_at: new Date().toISOString(),
+    start_date: p.start || '--',
+    end_date: p.end || '--',
+    days_analyzed: p.days || 0,
+    confidence_level: s.confidence || api.confidence || 'Unknown',
+    total_tasks: s.totalTasks || 0,
+    daily_average: s.dailyAverage || 0,
+    monthly_projected_current: s.currentMonthlyCost || 0,
+    monthly_projected_optimized: s.optimizedMonthlyCost || 0,
+    cache_hit_rate: api.caching?.hitRate || 0,
+    model_breakdown: Object.entries(api.models || {}).map(([model, m]) => ({
+      model,
+      tasks: m.count || 0,
+      cost: m.cost || 0,
+      avg_cost_per_task: m.avgCostPerTask || 0,
+      percentage: 0 // calculated later
+    })),
+    task_breakdown: Object.entries(api.taskTypes || {}).map(([type, t]) => ({
+      type,
+      count: t.count || 0,
+      percentage: 0,
+      avg_cost: t.avgCost || 0
+    })),
+    recommendations: (api.recommendations || []).map(r => ({
+      type: r.type || 'general',
+      title: r.title,
+      description: r.description,
+      impact: r.impact || r.estimatedSavings || '--',
+      details: r.details || []
+    })),
+    cache_stats: api.caching || {},
+    cost_timeline: api.costTimeline || [],
+    model_alternatives: api.modelAlternatives || api.model_alternatives || [],
+    budget_defaults: api.budgetDefaults || api.budget_defaults || {},
+    warnings: api.warnings || []
+  };
 }
 
-// Generate model details HTML
-function generateModelDetails(data) {
-    return `
-        <div>
-            <h4 style="margin-bottom: 16px; color: var(--text-primary);">Model Usage Breakdown</h4>
-            <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
-                <thead>
-                    <tr style="background: var(--bg-tertiary); text-align: left;">
-                        <th style="padding: 12px;">Model</th>
-                        <th style="padding: 12px; text-align: right;">Tasks</th>
-                        <th style="padding: 12px; text-align: right;">Total Cost</th>
-                        <th style="padding: 12px; text-align: right;">Avg/Task</th>
-                        <th style="padding: 12px; text-align: right;">% of Total</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${data.model_breakdown.map(model => `
-                        <tr style="border-bottom: 1px solid var(--border-color);">
-                            <td style="padding: 12px; font-weight: 500;">${model.model}</td>
-                            <td style="padding: 12px; text-align: right;">${model.tasks}</td>
-                            <td style="padding: 12px; text-align: right;">$${model.cost.toFixed(2)}</td>
-                            <td style="padding: 12px; text-align: right;">$${model.avg_cost_per_task.toFixed(3)}</td>
-                            <td style="padding: 12px; text-align: right;">${model.percentage.toFixed(1)}%</td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-        </div>
-    `;
+/* ─── Render All ─── */
+function renderAll() {
+  if (!analysisData) return;
+  updateKPIs();
+  updateMetrics();
+  updateCharts();
+  updateRecommendations();
+  updateModelRecommendations();
+  updateOtherRecommendations();
+  updateBudgetControls();
+  updateModelDetails();
+  updateLastUpdated();
+  checkCostDataNotice();
 }
 
-// Generate timeline details HTML
-function generateTimelineDetails(data) {
-    return `
-        <div>
-            <h4 style="margin-bottom: 16px; color: var(--text-primary);">Cost Timeline</h4>
-            <p style="color: var(--text-secondary); font-size: 14px;">
-                Analysis Period: ${data.start_date} to ${data.end_date}
-            </p>
-            <div style="margin-top: 20px;">
-                <canvas id="timelineChart" style="max-height: 300px;"></canvas>
-            </div>
-        </div>
-    `;
+/* ─── KPIs ─── */
+function updateKPIs() {
+  const d = analysisData;
+  const current = d.monthly_projected_current || 0;
+  const optimized = d.monthly_projected_optimized || 0;
+  const savings = current - optimized;
+  const pct = current > 0 ? ((savings / current) * 100) : 0;
+
+  setText('currentCost', `$${current.toFixed(2)}<small>/mo</small>`);
+  setText('optimizedCost', `$${optimized.toFixed(2)}<small>/mo</small>`);
+  setText('savingsAmount', `$${savings.toFixed(2)}`);
+  setText('savingsPercentage', pct > 0 ? `↓ ${pct.toFixed(1)}% reduction` : '--');
 }
 
-// Helper functions
-function isInsufficientData(data) {
-    // Insufficient data if:
-    // 1. Total costs are zero or near-zero (< $0.01)
-    // 2. Less than 5 tasks analyzed
-    // 3. Less than 1 day of data
-    const hasNoCosts = data.monthly_projected_current < 0.01;
-    const hasMinimalTasks = data.total_tasks < 5;
-    const hasMinimalDays = data.days_analyzed < 1;
-    
-    return hasNoCosts || hasMinimalTasks || hasMinimalDays;
+/* ─── Metrics ─── */
+function updateMetrics() {
+  const d = analysisData;
+  setText('analysisPeriod', `${d.days_analyzed || 0} days`);
+  setText('totalTasks', String(d.total_tasks || 0));
+  setText('cacheHitRate', `${((d.cache_hit_rate || 0) * 100).toFixed(1)}%`);
+  const daily = d.daily_average ? (d.daily_average * (d.monthly_projected_current / (d.total_tasks || 1))) : 0;
+  setText('dailySpend', `$${daily.toFixed(2)}`);
+
+  const conf = d.confidence_level || 'Unknown';
+  const badge = document.getElementById('confidenceBadge');
+  if (badge) {
+    badge.querySelector('.confidence-text').textContent = `Confidence: ${conf}`;
+  }
 }
 
-function getConfidenceIcon(level) {
-    const icons = {
-        'high': '✅',
-        'medium': '⚠️',
-        'low': 'ℹ️',
-        'optimistic': '📊'
-    };
-    return icons[level.toLowerCase()] || 'ℹ️';
+/* ─── Charts ─── */
+function updateCharts() {
+  updateModelChart();
+  updateTaskChart();
 }
 
-function getConfidenceText(level, days) {
-    if (days < 7) {
-        return `${level} confidence (${days} days analyzed - need 14+ for higher confidence)`;
-    }
-    return `${level} confidence (${days} days analyzed)`;
-}
+function updateModelChart() {
+  const ctx = document.getElementById('modelChart')?.getContext('2d');
+  if (!ctx) return;
 
-function getRecommendationIcon(type) {
-    const icons = {
-        'model_switch': '🔄',
-        'agent_creation': '🤖',
-        'cache_optimization': '⚡',
-        'budget_control': '💰',
-        'skill_optimization': '⚙️'
-    };
-    return icons[type] || '💡';
-}
+  const models = analysisData.model_breakdown || [];
+  const labels = models.map(m => m.model);
+  const costData = models.map(m => m.cost);
+  const taskData = models.map(m => m.tasks);
+  const colors = ['#6366f1', '#22c55e', '#f59e0b', '#38bdf8', '#ef4444', '#a78bfa'];
 
-function updateLastUpdated() {
-    const now = new Date();
-    const timeString = now.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        second: '2-digit'
-    });
-    document.getElementById('lastUpdated').textContent = timeString;
-}
-
-function hideLoading() {
-    const overlay = document.getElementById('loadingOverlay');
-    overlay.classList.add('hidden');
-}
-
-function showToast(message, type = 'info') {
-    const toast = document.getElementById('toast');
-    toast.textContent = message;
-    toast.className = `toast show ${type}`;
-    
-    setTimeout(() => {
-        toast.classList.remove('show');
-    }, 4000);
-}
-
-// API Configuration
-const API_BASE_URL = 'http://localhost:3001';
-
-// Action handlers
-function viewRecommendationDetails(index) {
-    const rec = currentData.recommendations[index];
-    alert(`Recommendation Details:\n\n${rec.title}\n\n${rec.description}`);
-    // TODO: Open modal with full details
-}
-
-async function exportReport() {
-    try {
-        showToast('Exporting report...', 'info');
-        const response = await fetch(`${API_BASE_URL}/api/export`);
-        
-        if (!response.ok) {
-            throw new Error('Failed to export report');
+  if (modelChart) modelChart.destroy();
+  modelChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Cost ($)',
+          data: costData,
+          backgroundColor: colors.slice(0, labels.length).map(c => c + '55'),
+          borderColor: colors.slice(0, labels.length),
+          borderWidth: 1.5,
+          borderRadius: 6,
+          yAxisID: 'y'
+        },
+        {
+          label: 'Tasks',
+          data: taskData,
+          type: 'line',
+          borderColor: '#38bdf8',
+          backgroundColor: 'rgba(56,189,248,.1)',
+          pointBackgroundColor: '#38bdf8',
+          pointRadius: 4,
+          tension: .3,
+          yAxisID: 'y1'
         }
-        
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `smartmeter-report-${new Date().toISOString().slice(0,10)}.md`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-        
-        showToast('Report exported successfully!', 'success');
-    } catch (error) {
-        console.error('Export failed:', error);
-        showToast('Failed to export report. Make sure the API server is running.', 'error');
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: true, position: 'top', labels: { color: '#8b90a5', font: { size: 11 }, boxWidth: 12, padding: 12 } }
+      },
+      scales: {
+        x: { ticks: { color: '#5d6178', font: { size: 10, family: "'JetBrains Mono', monospace" } }, grid: { color: 'rgba(42,46,63,.4)' } },
+        y: { position: 'left', ticks: { color: '#8b90a5', font: { size: 10 }, callback: v => '$' + v.toFixed(2) }, grid: { color: 'rgba(42,46,63,.3)' } },
+        y1: { position: 'right', ticks: { color: '#38bdf8', font: { size: 10 } }, grid: { drawOnChartArea: false } }
+      }
     }
+  });
 }
 
+function updateTaskChart() {
+  const ctx = document.getElementById('taskChart')?.getContext('2d');
+  if (!ctx) return;
+
+  const tasks = analysisData.task_breakdown || [];
+  const labels = tasks.map(t => t.type);
+  const data = tasks.map(t => t.count);
+  const colors = ['#6366f1', '#22c55e', '#f59e0b', '#38bdf8', '#ef4444'];
+
+  if (taskChart) taskChart.destroy();
+  taskChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        backgroundColor: colors.slice(0, labels.length),
+        borderColor: '#1c1f2e',
+        borderWidth: 3,
+        hoverOffset: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '60%',
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#8b90a5', font: { size: 11 }, padding: 14, boxWidth: 12 } }
+      }
+    }
+  });
+}
+
+/* ─── Recommendations (Savings Banner) ─── */
+function updateRecommendations() {
+  const d = analysisData;
+  if (!d) return;
+  const current = d.monthly_projected_current || 0;
+  const optimized = computeOptimizedCost();
+  const savings = current - optimized;
+
+  setText('totalSavingsEstimate', `$${savings.toFixed(2)}/mo`);
+  setText('bannerCurrentCost', `$${current.toFixed(2)}`);
+  setText('bannerOptimizedCost', `$${optimized.toFixed(2)}`);
+}
+
+function computeOptimizedCost() {
+  const d = analysisData;
+  if (!d) return 0;
+  const alternatives = d.model_alternatives || [];
+  const monthlyCurrent = d.monthly_projected_current || 0;
+  const totalTasks = d.total_tasks || 0;
+
+  // Estimate tier distribution
+  const tierDist = { high: 0.10, medium: 0.55, low: 0.35 };
+  const tasks = d.task_breakdown || [];
+  if (tasks.length > 0) {
+    const total = tasks.reduce((s, t) => s + t.count, 0) || 1;
+    const research = tasks.filter(t => /research/i.test(t.type)).reduce((s, t) => s + t.count, 0);
+    const code = tasks.filter(t => /code/i.test(t.type)).reduce((s, t) => s + t.count, 0);
+    const writing = tasks.filter(t => /writ/i.test(t.type)).reduce((s, t) => s + t.count, 0);
+    tierDist.high = Math.max(0.05, (research * 1.5 + code * 0.1) / total);
+    tierDist.medium = Math.max(0.20, (code * 0.6 + writing * 0.7) / total);
+    tierDist.low = Math.max(0.10, 1 - tierDist.high - tierDist.medium);
+  }
+
+  // Current cost per tier
+  const models = d.model_breakdown || [];
+  const modelsSortedByCost = [...models].sort((a, b) => b.avg_cost_per_task - a.avg_cost_per_task);
+  const currentModels = {
+    high: modelsSortedByCost[0] || null,
+    medium: modelsSortedByCost[1] || modelsSortedByCost[0] || null,
+    low: modelsSortedByCost[modelsSortedByCost.length - 1] || null
+  };
+
+  let total = 0;
+  for (const tier of TASK_TIERS) {
+    const tierTasks = Math.round(totalTasks * tierDist[tier.id]);
+    const chosenId = selectedModels[tier.id];
+    if (chosenId) {
+      const alt = alternatives.find(a => a.id === chosenId);
+      if (alt) {
+        total += tierTasks * alt.avg_cost_per_task;
+        continue;
+      }
+    }
+    // No selection — use current model cost for this tier
+    const cm = currentModels[tier.id];
+    if (cm) {
+      total += tierTasks * cm.avg_cost_per_task;
+    } else {
+      total += monthlyCurrent * tierDist[tier.id];
+    }
+  }
+
+  // Apply cache savings if applicable
+  const cacheBoost = (d.cache_hit_rate || 0) < 0.5 ? 0.85 : 1;
+  return total * cacheBoost;
+}
+
+/* ─── Task Complexity Tiers ─── */
+const TASK_TIERS = [
+  {
+    id: 'high',
+    label: 'High-Complexity Tasks',
+    icon: '🧠',
+    description: 'Architecture design, complex reasoning, multi-step research, difficult debugging. These tasks need the highest-quality models.',
+    color: 'var(--red)',
+    colorSubtle: 'var(--red-subtle)',
+    borderColor: 'rgba(239,68,68,.25)',
+    sort: (a, b) => b.quality_score - a.quality_score  // quality first
+  },
+  {
+    id: 'medium',
+    label: 'Medium-Complexity Tasks',
+    icon: '⚙️',
+    description: 'Standard coding, writing, code reviews, feature implementation. A good balance of quality and cost.',
+    color: 'var(--amber)',
+    colorSubtle: 'var(--amber-subtle)',
+    borderColor: 'rgba(245,158,11,.25)',
+    sort: (a, b) => (b.quality_score * 0.5 - b.avg_cost_per_task * 100) - (a.quality_score * 0.5 - a.avg_cost_per_task * 100)  // value
+  },
+  {
+    id: 'low',
+    label: 'Low-Complexity Tasks',
+    icon: '⚡',
+    description: 'Simple queries, quick fixes, boilerplate generation, formatting. Speed and low cost matter most.',
+    color: 'var(--green)',
+    colorSubtle: 'var(--green-subtle)',
+    borderColor: 'rgba(34,197,94,.25)',
+    sort: (a, b) => a.avg_cost_per_task - b.avg_cost_per_task  // cheapest first
+  }
+];
+
+/* ─── Model Recommendations by Tier ─── */
+function updateModelRecommendations() {
+  const container = document.getElementById('modelRecommendationsList');
+  if (!container) return;
+
+  const d = analysisData;
+  const alternatives = d.model_alternatives || [];
+  const totalTasks = d.total_tasks || 0;
+  const monthlyCurrent = d.monthly_projected_current || 0;
+
+  if (alternatives.length === 0) {
+    container.innerHTML = '<div class="empty-state"><p>No model data available. Connect your OpenRouter API key to see recommendations.</p></div>';
+    return;
+  }
+
+  // Estimate task distribution across tiers
+  const tierDistribution = { high: 0.10, medium: 0.55, low: 0.35 };
+  // Refine from task_breakdown if available
+  const tasks = d.task_breakdown || [];
+  if (tasks.length > 0) {
+    const total = tasks.reduce((s, t) => s + t.count, 0) || 1;
+    const research = tasks.filter(t => /research/i.test(t.type)).reduce((s, t) => s + t.count, 0);
+    const code = tasks.filter(t => /code/i.test(t.type)).reduce((s, t) => s + t.count, 0);
+    const writing = tasks.filter(t => /writ/i.test(t.type)).reduce((s, t) => s + t.count, 0);
+    tierDistribution.high = Math.max(0.05, (research * 1.5 + code * 0.1) / total);
+    tierDistribution.medium = Math.max(0.20, (code * 0.6 + writing * 0.7) / total);
+    tierDistribution.low = Math.max(0.10, 1 - tierDistribution.high - tierDistribution.medium);
+  }
+
+  // Identify which model is currently used for each tier (best guess from model_breakdown)
+  const models = d.model_breakdown || [];
+  const modelsSortedByCost = [...models].sort((a, b) => b.avg_cost_per_task - a.avg_cost_per_task);
+  const currentPerTier = {
+    high: modelsSortedByCost[0]?.model || null, // most expensive = high
+    medium: modelsSortedByCost[1]?.model || modelsSortedByCost[0]?.model || null,
+    low: modelsSortedByCost[modelsSortedByCost.length - 1]?.model || null // cheapest = low
+  };
+
+  const cards = TASK_TIERS.map((tier, tierIdx) => {
+    const chosenId = selectedModels[tier.id] || null;
+    const tierTasks = Math.round(totalTasks * tierDistribution[tier.id]);
+    const tierCostShare = monthlyCurrent * tierDistribution[tier.id];
+    const currentModel = currentPerTier[tier.id];
+    const currentAlt = alternatives.find(a => a.name === currentModel);
+    const currentCostPerTask = currentAlt?.avg_cost_per_task || (tierCostShare / (tierTasks || 1));
+
+    // Sort alternatives by tier preference
+    const sorted = [...alternatives].sort(tier.sort);
+
+    // Build options with projected costs
+    const opts = sorted.map((alt, rank) => {
+      const projCost = tierTasks * alt.avg_cost_per_task;
+      const currentTierCost = tierTasks * currentCostPerTask;
+      const savings = currentTierCost - projCost;
+      const isCurrent = alt.name === currentModel;
+      const isChosen = chosenId === alt.id;
+      const isRecommended = rank === 0 && !isCurrent;
+      return { ...alt, projCost, savings, isCurrent, isChosen, isRecommended };
+    });
+
+    const chosen = opts.find(o => o.isChosen);
+    const chosenSavings = chosen ? chosen.savings : 0;
+
+    return `
+      <div class="model-rec-card ${chosenId ? 'has-selection' : ''}" style="border-color: ${tier.borderColor}">
+        <div class="model-rec-header">
+          <div class="model-rec-current">
+            <div class="tier-badge" style="background: ${tier.colorSubtle}; color: ${tier.color}">
+              <span>${tier.icon}</span> ${escHtml(tier.label)}
+            </div>
+            <div class="model-rec-tier-desc">${escHtml(tier.description)}</div>
+            <div class="model-rec-stats">~${tierTasks} tasks/mo · ~$${tierCostShare.toFixed(2)}/mo${currentModel ? ' · Currently: ' + escHtml(currentModel) : ''}</div>
+          </div>
+          ${chosenSavings > 0 ? `
+          <div class="model-rec-savings-badge">
+            <span class="savings-arrow">↓</span> $${chosenSavings.toFixed(2)}/mo
+          </div>` : ''}
+        </div>
+
+        <div class="model-alt-label">Select a model for this tier:</div>
+        <div class="model-alt-list">
+          ${opts.map(alt => `
+            <label class="model-alt-option ${alt.isChosen ? 'selected' : ''} ${alt.isCurrent ? 'current' : ''}" onclick="selectModelAlternative('${tier.id}', '${alt.id}')">
+              <div class="model-alt-radio">
+                <input type="radio" name="tier-${tierIdx}" ${alt.isChosen || (!chosenId && alt.isCurrent) ? 'checked' : ''}>
+              </div>
+              <div class="model-alt-info">
+                <div class="model-alt-name">
+                  ${escHtml(alt.name)}
+                  ${alt.isCurrent ? '<span class="model-tag current-tag">CURRENT</span>' : ''}
+                  ${alt.isRecommended ? '<span class="model-tag best-tag">RECOMMENDED</span>' : ''}
+                </div>
+                <div class="model-alt-meta">
+                  Quality: ${renderQualityDots(alt.quality_score)} · ${escHtml(alt.speed)} · Best for: ${alt.best_for.join(', ')}
+                </div>
+              </div>
+              <div class="model-alt-cost">
+                <div class="model-alt-price">$${alt.projCost.toFixed(2)}<small>/mo</small></div>
+                ${!alt.isCurrent ? `<div class="model-alt-delta ${alt.savings > 0 ? 'delta-positive' : alt.savings < 0 ? 'delta-negative' : ''}">
+                  ${alt.savings > 0 ? '↓' : alt.savings < 0 ? '↑' : '='} ${alt.savings !== 0 ? '$' + Math.abs(alt.savings).toFixed(2) : 'same'}
+                </div>` : '<div class="model-alt-delta">—</div>'}
+              </div>
+            </label>
+          `).join('')}
+        </div>
+      </div>`;
+  });
+
+  container.innerHTML = cards.join('');
+}
+
+function renderQualityDots(score) {
+  const filled = Math.round(score / 20);
+  let dots = '';
+  for (let i = 0; i < 5; i++) {
+    dots += `<span class="quality-dot ${i < filled ? 'filled' : ''}"></span>`;
+  }
+  return `<span class="quality-dots">${dots}</span> ${score}`;
+}
+
+function selectModelAlternative(tierId, modelId) {
+  // Toggle: if clicking already-chosen, deselect
+  if (selectedModels[tierId] === modelId) {
+    delete selectedModels[tierId];
+  } else {
+    selectedModels[tierId] = modelId;
+  }
+  updateModelRecommendations();
+  updateRecommendations(); // recalculate savings banner
+}
+
+/* ─── Other Recommendations (non-model) ─── */
+function updateOtherRecommendations() {
+  const container = document.getElementById('otherRecommendationsList');
+  if (!container) return;
+
+  const recs = (analysisData.recommendations || []).filter(r => r.type !== 'model_switch' && r.type !== 'budget_control');
+  if (recs.length === 0) {
+    container.innerHTML = '<div class="empty-state"><p>No additional recommendations.</p></div>';
+    return;
+  }
+
+  container.innerHTML = recs.map((rec, i) => {
+    const edited = editedRecommendations[i];
+    const desc = edited?.description ?? rec.description;
+    const impact = rec.impact || '--';
+    const impactClass = getImpactClass(impact);
+    const isSelected = edited?.selected || false;
+    const isEditing = edited?.editing || false;
+    const isExpanded = edited?.expanded || false;
+
+    return `
+      <div class="rec-card ${isSelected ? 'selected' : ''} ${isEditing ? 'editing' : ''} ${isExpanded ? 'expanded' : ''}" data-index="${i}">
+        <div class="rec-header">
+          <input type="checkbox" class="rec-checkbox" ${isSelected ? 'checked' : ''} onchange="toggleRecSelection(${i})" title="Select for apply">
+          <div class="rec-title-wrap" onclick="toggleRecExpand(${i})">
+            <div class="rec-title">${escHtml(rec.title)}</div>
+            <div class="rec-meta">${escHtml(rec.type)} · Impact: ${escHtml(impact)}</div>
+          </div>
+          <span class="rec-impact-badge ${impactClass}">${escHtml(impact)}</span>
+          <div class="rec-actions">
+            <button class="btn btn-sm btn-outline" onclick="toggleRecEdit(${i})" title="Edit recommendation">✏️</button>
+          </div>
+        </div>
+        <div class="rec-body">
+          <p class="rec-description">${escHtml(desc)}</p>
+          <div class="rec-edit-area">
+            <textarea class="rec-edit-textarea" id="recEdit${i}" oninput="recDirty(${i})">${escHtml(desc)}</textarea>
+            <div class="rec-edit-actions">
+              <button class="btn btn-sm btn-success" onclick="saveRecEdit(${i})">Save</button>
+              <button class="btn btn-sm btn-ghost" onclick="cancelRecEdit(${i})">Cancel</button>
+            </div>
+          </div>
+          ${renderRecDetails(rec.details || [])}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+/* ─── Budget Controls ─── */
+function updateBudgetControls() {
+  const d = analysisData;
+  if (!d) return;
+  const defaults = d.budget_defaults || {};
+  const budgetRec = (d.recommendations || []).find(r => r.type === 'budget_control');
+
+  // Initialize budget state from defaults or recommendation data
+  if (!budgetState.initialized) {
+    budgetState = {
+      initialized: true,
+      dailyCap: defaults.daily_cap || parseFloat(extractBudgetValue(budgetRec, 'Daily cap')) || 2.00,
+      weeklyAlert: defaults.weekly_alert_pct || 75,
+      monthly: defaults.monthly_budget || parseFloat(extractBudgetValue(budgetRec, 'Monthly budget')) || 40,
+      autoPause: defaults.auto_pause_pct || 95
+    };
+  }
+
+  // Set input values
+  setInputVal('budgetDailyCap', budgetState.dailyCap);
+  setInputVal('budgetDailyCapSlider', budgetState.dailyCap);
+  setInputVal('budgetWeeklyAlert', budgetState.weeklyAlert);
+  setInputVal('budgetWeeklyAlertSlider', budgetState.weeklyAlert);
+  setInputVal('budgetMonthly', budgetState.monthly);
+  setInputVal('budgetMonthlySlider', budgetState.monthly);
+  setInputVal('budgetAutoPause', budgetState.autoPause);
+  setInputVal('budgetAutoPauseSlider', budgetState.autoPause);
+
+  updateBudgetImpact();
+}
+
+function extractBudgetValue(rec, prefix) {
+  if (!rec || !rec.details) return '';
+  const detail = rec.details.find(d => d.startsWith(prefix));
+  if (!detail) return '';
+  const match = detail.match(/\$?([\d.]+)/);
+  return match ? match[1] : '';
+}
+
+function setInputVal(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.value = val;
+}
+
+function syncBudgetSlider(inputId, value) {
+  const input = document.getElementById(inputId);
+  if (input) input.value = value;
+  onBudgetChange();
+}
+
+function onBudgetChange() {
+  const daily = parseFloat(document.getElementById('budgetDailyCap')?.value) || 0;
+  const weekly = parseFloat(document.getElementById('budgetWeeklyAlert')?.value) || 0;
+  const monthly = parseFloat(document.getElementById('budgetMonthly')?.value) || 0;
+  const autoPause = parseFloat(document.getElementById('budgetAutoPause')?.value) || 0;
+
+  budgetState.dailyCap = daily;
+  budgetState.weeklyAlert = weekly;
+  budgetState.monthly = monthly;
+  budgetState.autoPause = autoPause;
+
+  // Sync sliders
+  setInputVal('budgetDailyCapSlider', daily);
+  setInputVal('budgetWeeklyAlertSlider', weekly);
+  setInputVal('budgetMonthlySlider', monthly);
+  setInputVal('budgetAutoPauseSlider', autoPause);
+
+  updateBudgetImpact();
+}
+
+function updateBudgetImpact() {
+  const grid = document.getElementById('budgetImpactGrid');
+  if (!grid) return;
+
+  const d = analysisData;
+  const current = d?.monthly_projected_current || 0;
+  const daily = budgetState.dailyCap || 0;
+  const monthly = budgetState.monthly || 0;
+  const weeklyPct = budgetState.weeklyAlert || 75;
+  const autoPausePct = budgetState.autoPause || 95;
+
+  const weeklyBudget = monthly / 4.33;
+  const weeklyAlertAt = weeklyBudget * (weeklyPct / 100);
+  const autoPauseAt = monthly * (autoPausePct / 100);
+  const maxDailySpend = daily * 30;
+  const effectiveCap = Math.min(monthly, maxDailySpend);
+  const headroom = effectiveCap - current;
+
+  grid.innerHTML = `
+    <div class="impact-item">
+      <div class="impact-label">Max daily spend</div>
+      <div class="impact-value">$${daily.toFixed(2)}</div>
+    </div>
+    <div class="impact-item">
+      <div class="impact-label">Weekly alert at</div>
+      <div class="impact-value">$${weeklyAlertAt.toFixed(2)} <small>(${weeklyPct}%)</small></div>
+    </div>
+    <div class="impact-item">
+      <div class="impact-label">Auto-pause at</div>
+      <div class="impact-value">$${autoPauseAt.toFixed(2)} <small>(${autoPausePct}%)</small></div>
+    </div>
+    <div class="impact-item ${headroom >= 0 ? 'impact-safe' : 'impact-warning'}">
+      <div class="impact-label">Budget headroom</div>
+      <div class="impact-value">${headroom >= 0 ? '+' : ''}$${headroom.toFixed(2)}/mo</div>
+    </div>
+  `;
+}
+
+function resetBudgetDefaults() {
+  const d = analysisData;
+  const defaults = d?.budget_defaults || {};
+  budgetState = {
+    initialized: true,
+    dailyCap: defaults.daily_cap || 2.40,
+    weeklyAlert: defaults.weekly_alert_pct || 75,
+    monthly: defaults.monthly_budget || 40,
+    autoPause: defaults.auto_pause_pct || 95
+  };
+  updateBudgetControls();
+  showToast('Budget controls reset to defaults');
+}
+
+async function applyBudgetControls() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/apply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        confirm: true,
+        budget: {
+          daily: budgetState.dailyCap,
+          weekly_alert_pct: budgetState.weeklyAlert,
+          monthly: budgetState.monthly,
+          auto_pause_pct: budgetState.autoPause
+        }
+      })
+    });
+    const json = await res.json();
+    if (json.success) {
+      showToast('✅ Budget controls saved!');
+    } else {
+      showToast(`Error: ${json.error || 'Save failed'}`);
+    }
+  } catch {
+    // Offline mode — save to local state
+    showToast('✅ Budget controls saved locally (API offline)');
+  }
+}
+
+function renderRecDetails(details) {
+  if (!details.length) return '';
+  return `
+    <div class="rec-details">
+      ${details.map(d => `
+        <div class="rec-detail-item">
+          <div class="rec-detail-value">${escHtml(d)}</div>
+        </div>`).join('')}
+    </div>`;
+}
+
+function getImpactClass(impact) {
+  if (!impact) return 'impact-low';
+  const s = impact.toLowerCase();
+  if (s.includes('$') && parseInt(s.replace(/[^0-9]/g, '')) >= 20) return 'impact-high';
+  if (s.includes('$') && parseInt(s.replace(/[^0-9]/g, '')) >= 10) return 'impact-medium';
+  if (s.includes('prevent') || s.includes('control')) return 'impact-medium';
+  return 'impact-low';
+}
+
+function toggleRecExpand(i) {
+  const card = document.querySelector(`.rec-card[data-index="${i}"]`);
+  if (!card) return;
+  card.classList.toggle('expanded');
+  if (!editedRecommendations[i]) editedRecommendations[i] = {};
+  editedRecommendations[i].expanded = card.classList.contains('expanded');
+}
+
+function toggleRecSelection(i) {
+  if (!editedRecommendations[i]) editedRecommendations[i] = {};
+  editedRecommendations[i].selected = !editedRecommendations[i].selected;
+  const card = document.querySelector(`.rec-card[data-index="${i}"]`);
+  if (card) card.classList.toggle('selected', editedRecommendations[i].selected);
+}
+
+function toggleRecEdit(i) {
+  const card = document.querySelector(`.rec-card[data-index="${i}"]`);
+  if (!card) return;
+  if (!editedRecommendations[i]) editedRecommendations[i] = {};
+  const isEditing = !editedRecommendations[i].editing;
+  editedRecommendations[i].editing = isEditing;
+  card.classList.toggle('editing', isEditing);
+  // Also expand if not already
+  if (isEditing && !card.classList.contains('expanded')) {
+    card.classList.add('expanded');
+    editedRecommendations[i].expanded = true;
+  }
+}
+
+function saveRecEdit(i) {
+  const textarea = document.getElementById(`recEdit${i}`);
+  if (!textarea) return;
+  if (!editedRecommendations[i]) editedRecommendations[i] = {};
+  editedRecommendations[i].description = textarea.value;
+  editedRecommendations[i].editing = false;
+  updateRecommendations();
+  showToast('Recommendation updated');
+}
+
+function cancelRecEdit(i) {
+  if (!editedRecommendations[i]) editedRecommendations[i] = {};
+  editedRecommendations[i].editing = false;
+  // Reset textarea to last saved description
+  const textarea = document.getElementById(`recEdit${i}`);
+  const orig = editedRecommendations[i].description ?? analysisData.recommendations[i]?.description ?? '';
+  if (textarea) textarea.value = orig;
+  updateRecommendations();
+}
+
+function recDirty(i) {
+  // Mark as dirty — visual feedback could go here
+}
+
+function resetAllEdits() {
+  editedRecommendations = {};
+  updateRecommendations();
+  showToast('All edits reset');
+}
+
+async function applySelectedRecommendations() {
+  const selected = Object.entries(editedRecommendations)
+    .filter(([_, v]) => v.selected)
+    .map(([i]) => parseInt(i));
+
+  if (selected.length === 0) {
+    showToast('Select at least one recommendation to apply');
+    return;
+  }
+
+  const confirmed = confirm(`Apply ${selected.length} selected recommendation(s)? This will update your OpenClaw configuration.`);
+  if (!confirmed) return;
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/apply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ confirm: true })
+    });
+    const json = await res.json();
+    if (json.success) {
+      showToast(`✅ ${selected.length} optimization(s) applied!`);
+      // Uncheck applied items
+      selected.forEach(i => {
+        if (editedRecommendations[i]) editedRecommendations[i].selected = false;
+      });
+      updateRecommendations();
+    } else {
+      showToast(`Error: ${json.error || 'Apply failed'}`);
+    }
+  } catch (err) {
+    showToast(`Network error: ${err.message}`);
+  }
+}
+
+/* ─── Model Details ─── */
+function updateModelDetails() {
+  const container = document.getElementById('modelDetailsCard');
+  if (!container) return;
+
+  const models = analysisData.model_breakdown || [];
+  if (models.length === 0) {
+    container.innerHTML = '<div class="empty-state"><p>No model data available yet.</p></div>';
+    return;
+  }
+
+  const totalCost = models.reduce((s, m) => s + m.cost, 0);
+  container.innerHTML = `
+    <table class="model-table">
+      <thead>
+        <tr>
+          <th>Model</th>
+          <th>Tasks</th>
+          <th>Cost</th>
+          <th>Avg/Task</th>
+          <th>Share</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${models.map(m => {
+          const share = totalCost > 0 ? ((m.cost / totalCost) * 100).toFixed(1) : '0.0';
+          return `<tr>
+            <td><span class="model-name">${escHtml(m.model)}</span></td>
+            <td>${m.tasks}</td>
+            <td>$${m.cost.toFixed(2)}</td>
+            <td>$${m.avg_cost_per_task.toFixed(3)}</td>
+            <td>${share}%</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+}
+
+/* ─── OpenRouter Integration ─── */
+async function checkOpenRouterConfig() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/config/openrouter-key`);
+    if (!res.ok) return;
+    const json = await res.json();
+    if (json.configured) {
+      fetchOpenRouterUsage();
+    }
+  } catch {
+    // API not available — continue in static mode
+  }
+}
+
+async function fetchOpenRouterUsage() {
+  const container = document.getElementById('openRouterContent');
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/openrouter-usage`);
+    if (!res.ok) return;
+    const json = await res.json();
+    if (json.success && json.configured) {
+      const usage = json.data || json;
+      container.innerHTML = `
+        <div class="or-stats-grid">
+          <div class="or-stat-card">
+            <div class="or-stat-label">Usage (USD)</div>
+            <div class="or-stat-value">$${(usage.usage || 0).toFixed(2)}</div>
+          </div>
+          <div class="or-stat-card">
+            <div class="or-stat-label">Limit</div>
+            <div class="or-stat-value">$${(usage.limit || 0).toFixed(2)}</div>
+          </div>
+          <div class="or-stat-card">
+            <div class="or-stat-label">Remaining</div>
+            <div class="or-stat-value">$${((usage.limit || 0) - (usage.usage || 0)).toFixed(2)}</div>
+          </div>
+          <div class="or-stat-card">
+            <div class="or-stat-label">Rate Limit</div>
+            <div class="or-stat-value">${usage.rate_limit?.requests || '--'}/s</div>
+          </div>
+        </div>`;
+    }
+  } catch {
+    // noop
+  }
+}
+
+/* ─── Config Modal ─── */
+function openConfigModal() {
+  document.getElementById('configModal').style.display = 'flex';
+  document.getElementById('apiKeyInput').focus();
+  const status = document.getElementById('configStatus');
+  status.className = 'config-status';
+  status.style.display = 'none';
+}
+function closeConfigModal() {
+  document.getElementById('configModal').style.display = 'none';
+}
+
+async function saveApiKey() {
+  const key = document.getElementById('apiKeyInput').value.trim();
+  const status = document.getElementById('configStatus');
+
+  if (!key) {
+    status.textContent = 'Please enter an API key.';
+    status.className = 'config-status error';
+    return;
+  }
+
+  if (!key.startsWith('sk-or-')) {
+    status.textContent = 'Invalid format — key should start with sk-or-';
+    status.className = 'config-status error';
+    return;
+  }
+
+  status.textContent = 'Validating…';
+  status.className = 'config-status';
+  status.style.display = 'block';
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/config/openrouter-key`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiKey: key })
+    });
+    const json = await res.json();
+    if (json.success) {
+      status.textContent = '✅ API key saved and validated!';
+      status.className = 'config-status success';
+      setTimeout(() => {
+        closeConfigModal();
+        fetchOpenRouterUsage();
+        navigateTo('openrouter');
+      }, 1200);
+    } else {
+      status.textContent = `❌ ${json.error || 'Validation failed'}`;
+      status.className = 'config-status error';
+    }
+  } catch (err) {
+    status.textContent = `❌ Network error: ${err.message}`;
+    status.className = 'config-status error';
+  }
+}
+
+/* ─── Preview Modal ─── */
 async function viewConfig() {
-    try {
-        showToast('Loading config preview...', 'info');
-        const response = await fetch(`${API_BASE_URL}/api/preview`);
-        
-        if (!response.ok) {
-            throw new Error('Failed to load preview');
-        }
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            // Show config in a modal or new window
-            const configWindow = window.open('', 'Config Preview', 'width=800,height=600');
-            configWindow.document.write(`
-                <html>
-                <head>
-                    <title>SmartMeter Config Preview</title>
-                    <style>
-                        body { font-family: monospace; padding: 20px; background: #1e1e1e; color: #d4d4d4; }
-                        pre { background: #252526; padding: 15px; border-radius: 5px; overflow: auto; }
-                        h2 { color: #4ec9b0; }
-                    </style>
-                </head>
-                <body>
-                    <h2>📋 Optimized Configuration Preview</h2>
-                    <p>This is the configuration that will be applied to ~/.openclaw/openclaw.json</p>
-                    <pre>${JSON.stringify(data.config, null, 2)}</pre>
-                </body>
-                </html>
-            `);
-            showToast('Config preview opened in new window', 'success');
-        } else {
-            showToast(data.error || 'Failed to load preview', 'error');
-        }
-    } catch (error) {
-        console.error('Preview failed:', error);
-        showToast('Failed to load preview. Make sure the API server is running.', 'error');
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/preview`);
+    const json = await res.json();
+    if (json.success) {
+      document.getElementById('previewConfigCode').textContent = JSON.stringify(json.config, null, 2);
+      document.getElementById('previewModal').style.display = 'flex';
+    } else {
+      showToast(`Error: ${json.error || 'No config available'}`);
     }
+  } catch (err) {
+    showToast(`Preview failed: ${err.message}`);
+  }
+}
+function closePreviewModal() {
+  document.getElementById('previewModal').style.display = 'none';
 }
 
 async function applyOptimizations() {
-    if (!confirm('Apply all optimizations?\n\nThis will:\n• Create a backup of your current config\n• Apply the optimized configuration\n• Restart OpenClaw may be required\n\nContinue?')) {
-        return;
+  const confirmed = confirm('Apply all optimizations? A backup will be created.');
+  if (!confirmed) return;
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/apply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ confirm: true })
+    });
+    const json = await res.json();
+    if (json.success) {
+      showToast('✅ Optimizations applied! Backup created.');
+      closePreviewModal();
+    } else {
+      showToast(`Error: ${json.error || 'Apply failed'}`);
     }
-    
+  } catch (err) {
+    showToast(`Apply failed: ${err.message}`);
+  }
+}
+
+/* ─── Export ─── */
+async function exportReport() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/export`);
+    if (!res.ok) throw new Error('Export failed');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'smartmeter-report.md';
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('📄 Report downloaded');
+  } catch (err) {
+    // Fallback: generate from local data
+    if (analysisData) {
+      const md = generateLocalReport(analysisData);
+      const blob = new Blob([md], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'smartmeter-report.md';
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('📄 Report exported from local data');
+    } else {
+      showToast('Export failed: no data');
+    }
+  }
+}
+
+function generateLocalReport(d) {
+  return `# SmartMeter Cost Analysis Report
+
+**Generated:** ${new Date().toISOString()}
+**Period:** ${d.start_date} to ${d.end_date} (${d.days_analyzed} days)
+
+## Summary
+- Current Monthly Cost: $${(d.monthly_projected_current || 0).toFixed(2)}
+- Optimized Monthly Cost: $${(d.monthly_projected_optimized || 0).toFixed(2)}
+- Potential Savings: $${((d.monthly_projected_current || 0) - (d.monthly_projected_optimized || 0)).toFixed(2)}/month
+- Total Tasks: ${d.total_tasks}
+- Cache Hit Rate: ${((d.cache_hit_rate || 0) * 100).toFixed(1)}%
+
+## Recommendations
+${(d.recommendations || []).map((r, i) => `${i + 1}. **${r.title}** — ${r.impact}\n   ${r.description}`).join('\n\n')}
+
+---
+*Generated by SmartMeter*
+`;
+}
+
+/* ─── Navigation ─── */
+function navigateTo(section) {
+  // Update nav active state
+  document.querySelectorAll('.nav-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.section === section);
+  });
+  // Toggle sections
+  document.querySelectorAll('.page-section').forEach(el => {
+    el.classList.toggle('active', el.id === `section-${section}`);
+  });
+  // Update page title
+  const titles = { overview: 'Overview', recommendations: 'Recommendations', models: 'Models', openrouter: 'OpenRouter' };
+  setText('pageTitle', titles[section] || section);
+}
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+}
+
+/* ─── Auto-Refresh ─── */
+function startAutoRefresh() {
+  autoRefreshTimer = setInterval(async () => {
     try {
-        showToast('Applying optimizations...', 'info');
-        
-        const response = await fetch(`${API_BASE_URL}/api/apply`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ confirm: true })
-        });
-        
-        if (!response.ok) {
-            throw new Error('Failed to apply optimizations');
+      const res = await fetch('analysis.public.json', { cache: 'no-store' });
+      if (res.ok) {
+        const newData = await res.json();
+        if (JSON.stringify(newData) !== JSON.stringify(analysisData)) {
+          analysisData = newData;
+          renderAll();
         }
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            showToast('✅ Optimizations applied successfully! Backup created.', 'success');
-            // Refresh dashboard after a short delay
-            setTimeout(() => refreshDashboard(), 1000);
-        } else {
-            showToast(data.error || 'Failed to apply optimizations', 'error');
-        }
-    } catch (error) {
-        console.error('Apply failed:', error);
-        showToast('Failed to apply optimizations. Make sure the API server is running.', 'error');
+      }
+    } catch {
+      // silent
     }
+  }, 5000);
 }
 
-// ============================================
-// OpenRouter Integration Functions
-// ============================================
-
-/**
- * Check if OpenRouter API key is configured
- */
-async function checkOpenRouterConfig() {
-    // Always show OpenRouter section
-    document.getElementById('openRouterSection').style.display = 'block';
-    
-    try {
-        const response = await fetch(`${API_BASE_URL}/config/openrouter-key`);
-        if (response.ok) {
-            const data = await response.json();
-            openRouterConfigured = data.configured;
-            
-            if (openRouterConfigured) {
-                await fetchOpenRouterUsage();
-            } else {
-                // Show configure prompt
-                updateOpenRouterDisplay({ configured: false });
-            }
-        }
-    } catch (error) {
-        console.log('OpenRouter config check failed (API server may not be running):', error.message);
-        // Still show section with configuration prompt
-        updateOpenRouterDisplay({ configured: false });
-    }
+async function refreshDashboard() {
+  await loadAnalysisData();
+  showToast('Dashboard refreshed');
 }
 
-/**
- * Fetch actual OpenRouter usage from API
- */
-async function fetchOpenRouterUsage() {
-    try {
-        const response = await fetch(`${API_BASE_URL}/openrouter-usage`);
-        if (!response.ok) {
-            throw new Error('Failed to fetch OpenRouter usage');
-        }
-        
-        const data = await response.json();
-        openRouterUsage = data;
-        
-        updateOpenRouterDisplay(data);
-    } catch (error) {
-        console.error('Failed to fetch OpenRouter usage:', error);
-        updateOpenRouterDisplay({ success: false, error: error.message });
+/* ─── Cost Data Notice ─── */
+function checkCostDataNotice() {
+  const d = analysisData;
+  if (!d) return;
+  const hasCostData = (d.monthly_projected_current || 0) > 0;
+  const notice = document.getElementById('costDataNotice');
+  if (notice) {
+    // Only show when cost data is truly missing — keep hidden otherwise
+    if (!hasCostData) {
+      notice.style.display = 'flex';
     }
+  }
 }
 
-/**
- * Update OpenRouter usage display in dashboard
- */
-function updateOpenRouterDisplay(data) {
-    const content = document.getElementById('openRouterContent');
-    
-    if (!data.configured) {
-        content.innerHTML = `
-            <div class="openrouter-notice">
-                <p>⚙️ Configure your OpenRouter API key to view actual usage and compare with analyzed data.</p>
-                <button class="btn btn-primary" onclick="openConfigModal()">Configure API Key</button>
-            </div>
-        `;
-        return;
-    }
-    
-    if (!data.success) {
-        content.innerHTML = `
-            <div class="openrouter-error">
-                <p>❌ Error fetching OpenRouter usage: ${data.error || 'Unknown error'}</p>
-                <button class="btn btn-secondary" onclick="openConfigModal()">Update API Key</button>
-            </div>
-        `;
-        return;
-    }
-    
-    // Display actual usage
-    const totalSpent = data.totalSpent !== null ? `$${data.totalSpent.toFixed(4)}` : 'N/A';
-    const accountInfo = data.account || {};
-    
-    content.innerHTML = `
-        <div class="openrouter-data">
-            <div class="usage-grid">
-                <div class="usage-item">
-                    <div class="usage-label">Account</div>
-                    <div class="usage-value">${accountInfo.label || 'Unknown'}</div>
-                </div>
-                <div class="usage-item">
-                    <div class="usage-label">Total Spent</div>
-                    <div class="usage-value highlight">${totalSpent}</div>
-                </div>
-                <div class="usage-item">
-                    <div class="usage-label">Usage Balance</div>
-                    <div class="usage-value">${accountInfo.usageBalance !== null ? `$${(accountInfo.usageBalance / 100).toFixed(2)}` : 'N/A'}</div>
-                </div>
-                <div class="usage-item">
-                    <div class="usage-label">Account Type</div>
-                    <div class="usage-value">${accountInfo.isFreeTier ? 'Free Tier' : 'Paid'}</div>
-                </div>
-            </div>
-            ${getComparisonHtml(data)}
-            <div class="openrouter-footer">
-                <small>Last updated: ${new Date(data.timestamp).toLocaleString()}</small>
-                <button class="btn-link" onclick="fetchOpenRouterUsage()">🔄 Refresh</button>
-            </div>
-        </div>
-    `;
+/* ─── Helpers ─── */
+function setText(id, html) {
+  const el = document.getElementById(id);
+  if (el) el.innerHTML = html;
 }
 
-/**
- * Generate comparison HTML between analyzed and actual usage
- */
-function getComparisonHtml(openRouterData) {
-    if (!currentData || !openRouterData.totalSpent) {
-        return '';
-    }
-    
-    const analyzed = currentData.monthly_projected_current;
-    const actual = openRouterData.totalSpent;
-    const difference = Math.abs(analyzed - actual);
-    const percentDiff = analyzed > 0 ? ((difference / analyzed) * 100).toFixed(1) : 0;
-    
-    return `
-        <div class="comparison-section">
-            <h4>📊 Comparison</h4>
-            <div class="comparison-grid">
-                <div class="comparison-item">
-                    <span class="comparison-label">SmartMeter Analyzed:</span>
-                    <span class="comparison-value">$${analyzed.toFixed(4)}</span>
-                </div>
-                <div class="comparison-item">
-                    <span class="comparison-label">OpenRouter Actual:</span>
-                    <span class="comparison-value">$${actual.toFixed(4)}</span>
-                </div>
-                <div class="comparison-item">
-                    <span class="comparison-label">Difference:</span>
-                    <span class="comparison-value ${analyzed > actual ? 'positive' : 'negative'}">
-                        ${analyzed > actual ? '-' : '+'}$${difference.toFixed(4)} (${percentDiff}%)
-                    </span>
-                </div>
-            </div>
-            ${analyzed === 0 && actual > 0 ? `
-                <div class="comparison-note">
-                    ℹ️ SmartMeter shows $0 because OpenRouter isn't including cost data in API responses. 
-                    Your actual usage is ${totalSpent} as shown above.
-                </div>
-            ` : ''}
-        </div>
-    `;
+function escHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-/**
- * Open API key configuration modal
- */
-function openConfigModal() {
-    document.getElementById('configModal').style.display = 'flex';
-    document.getElementById('configStatus').innerHTML = '';
+function updateLastUpdated() {
+  const el = document.getElementById('lastUpdated');
+  if (el) el.textContent = new Date().toLocaleTimeString();
 }
 
-/**
- * Close API key configuration modal
- */
-function closeConfigModal() {
-    document.getElementById('configModal').style.display = 'none';
-    document.getElementById('apiKeyInput').value = '';
-    document.getElementById('configStatus').innerHTML = '';
+function hideLoading() {
+  const ov = document.getElementById('loadingOverlay');
+  if (ov) {
+    ov.classList.add('hidden');
+    setTimeout(() => ov.remove(), 400);
+  }
 }
 
-/**
- * Save and validate API key
- */
-async function saveApiKey() {
-    const apiKey = document.getElementById('apiKeyInput').value.trim();
-    const statusDiv = document.getElementById('configStatus');
-    
-    if (!apiKey) {
-        statusDiv.innerHTML = '<div class="status-error">⚠️ Please enter an API key</div>';
-        return;
-    }
-    
-    if (!apiKey.startsWith('sk-or-')) {
-        statusDiv.innerHTML = '<div class="status-error">⚠️ Invalid API key format (should start with "sk-or-")</div>';
-        return;
-    }
-    
-    statusDiv.innerHTML = '<div class="status-loading">⏳ Validating API key...</div>';
-    
-    try {
-        const response = await fetch(`${API_BASE_URL}/config/openrouter-key`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ apiKey })
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            statusDiv.innerHTML = '<div class="status-success">✅ API key saved and validated!</div>';
-            setTimeout(() => {
-                closeConfigModal();
-                window.location.reload(); // Reload to show OpenRouter section
-            }, 1500);
-        } else {
-            statusDiv.innerHTML = `<div class="status-error">❌ ${data.error || 'Validation failed'}</div>`;
-        }
-    } catch (error) {
-        statusDiv.innerHTML = `<div class="status-error">❌ Failed to save: ${error.message}</div>`;
-    }
+function showToast(msg, duration = 3000) {
+  const el = document.getElementById('toast');
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(el._timer);
+  el._timer = setTimeout(() => el.classList.remove('show'), duration);
 }
-
-// Export functions for inline onclick handlers
-window.refreshDashboard = refreshDashboard;
-window.switchTab = switchTab;
-window.viewRecommendationDetails = viewRecommendationDetails;
-window.exportReport = exportReport;
-window.viewConfig = viewConfig;
-window.applyOptimizations = applyOptimizations;
-window.openConfigModal = openConfigModal;
-window.closeConfigModal = closeConfigModal;
-window.saveApiKey = saveApiKey;
-window.fetchOpenRouterUsage = fetchOpenRouterUsage;
-
-window.viewConfig = viewConfig;
-window.applyOptimizations = applyOptimizations;

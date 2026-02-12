@@ -395,7 +395,7 @@ src/
     index.js            #   Commander.js entry point (8 commands)
     commands.js         #   Command handlers
     utils.js            #   Formatting helpers
-tests/                  # 93 tests across all modules
+tests/                  # 94 tests across all modules
 canvas-template/        # Dashboard HTML/JS/CSS
 docs/                   # SPEC alignment, backlog, dashboard docs
 ```
@@ -413,7 +413,7 @@ node --test tests/parser.test.js
 node --test --reporter spec tests/*.test.js
 ```
 
-93 tests covering parser, classifier, aggregator, recommender, storage, config generator, and CLI commands.
+94 tests covering parser, classifier, aggregator, recommender, storage, config generator, CLI commands, and SPEC compliance.
 
 ## Documentation
 

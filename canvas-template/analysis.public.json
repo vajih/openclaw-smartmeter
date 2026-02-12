@@ -11,8 +11,7 @@
   "monthly_projected_current": 59.97,
   "monthly_projected_optimized": 31.14,
   "cache_hit_rate": 0.192,
-  "model_breakdown": [
-    {
+  "model_breakdown": [{
       "model": "DeepSeek Chat",
       "tasks": 65,
       "cost": 1.20,
@@ -34,8 +33,7 @@
       "percentage": 10.0
     }
   ],
-  "task_breakdown": [
-    {
+  "task_breakdown": [{
       "type": "Code",
       "count": 74,
       "percentage": 78.7,
@@ -54,8 +52,7 @@
       "avg_cost": 0.080
     }
   ],
-  "recommendations": [
-    {
+  "recommendations": [{
       "type": "model_switch",
       "title": "Switch Primary Model to DeepSeek Chat",
       "description": "DeepSeek Chat handles 69% of your tasks at 1/5th the cost of Claude Sonnet 4.5. This model is ideal for your code-heavy workload.",
@@ -111,8 +108,7 @@
     "hit_rate": 0.192,
     "savings_from_cache": 0.80
   },
-  "cost_timeline": [
-    {
+  "cost_timeline": [{
       "date": "2026-01-20",
       "cost": 2.10,
       "tasks": 47
@@ -123,16 +119,81 @@
       "tasks": 47
     }
   ],
-  "agent_suggestions": [
+  "agent_suggestions": [{
+    "name": "code-reviewer",
+    "purpose": "Code reviews, debugging, refactoring",
+    "primary_model": "deepseek/deepseek-chat",
+    "fallback_chain": ["anthropic/claude-sonnet-4.5", "anthropic/claude-opus-4.5"],
+    "estimated_tasks_per_month": 74,
+    "estimated_monthly_savings": 12.00
+  }],
+  "model_alternatives": [{
+      "id": "deepseek/deepseek-chat",
+      "name": "DeepSeek Chat",
+      "input_cost_per_1k": 0.00014,
+      "output_cost_per_1k": 0.00028,
+      "avg_cost_per_task": 0.018,
+      "quality_score": 82,
+      "speed": "fast",
+      "best_for": ["code", "debugging", "quick tasks"]
+    },
     {
-      "name": "code-reviewer",
-      "purpose": "Code reviews, debugging, refactoring",
-      "primary_model": "deepseek/deepseek-chat",
-      "fallback_chain": ["anthropic/claude-sonnet-4.5", "anthropic/claude-opus-4.5"],
-      "estimated_tasks_per_month": 74,
-      "estimated_monthly_savings": 12.00
+      "id": "anthropic/claude-sonnet-4.5",
+      "name": "Claude Sonnet 4.5",
+      "input_cost_per_1k": 0.003,
+      "output_cost_per_1k": 0.015,
+      "avg_cost_per_task": 0.086,
+      "quality_score": 93,
+      "speed": "medium",
+      "best_for": ["complex code", "writing", "research"]
+    },
+    {
+      "id": "anthropic/claude-opus-4.5",
+      "name": "Claude Opus 4.5",
+      "input_cost_per_1k": 0.015,
+      "output_cost_per_1k": 0.075,
+      "avg_cost_per_task": 0.400,
+      "quality_score": 98,
+      "speed": "slow",
+      "best_for": ["architecture", "complex reasoning", "research"]
+    },
+    {
+      "id": "google/gemini-2.0-flash",
+      "name": "Gemini 2.0 Flash",
+      "input_cost_per_1k": 0.0001,
+      "output_cost_per_1k": 0.0004,
+      "avg_cost_per_task": 0.012,
+      "quality_score": 78,
+      "speed": "very fast",
+      "best_for": ["code", "quick tasks", "simple queries"]
+    },
+    {
+      "id": "openai/gpt-4o-mini",
+      "name": "GPT-4o Mini",
+      "input_cost_per_1k": 0.00015,
+      "output_cost_per_1k": 0.0006,
+      "avg_cost_per_task": 0.022,
+      "quality_score": 80,
+      "speed": "fast",
+      "best_for": ["code", "writing", "quick tasks"]
+    },
+    {
+      "id": "openai/gpt-4o",
+      "name": "GPT-4o",
+      "input_cost_per_1k": 0.005,
+      "output_cost_per_1k": 0.015,
+      "avg_cost_per_task": 0.095,
+      "quality_score": 94,
+      "speed": "medium",
+      "best_for": ["complex code", "writing", "research"]
     }
   ],
+  "budget_defaults": {
+    "daily_cap": 2.40,
+    "weekly_alert_pct": 75,
+    "monthly_budget": 40.00,
+    "auto_pause_pct": 95
+  },
   "warnings": [
     "Only 2 days of data analyzed - confidence is optimistic",
     "Run analysis again after 14+ days for production-grade recommendations",

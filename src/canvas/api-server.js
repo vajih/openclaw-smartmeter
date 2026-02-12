@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { createConnection } from "node:net";
 
 import {
   cmdAnalyze,
@@ -11,6 +12,45 @@ import {
 
 import { fetchOpenRouterUsage, isValidApiKeyFormat } from "../analyzer/openrouter-client.js";
 import { getOpenRouterApiKey, setOpenRouterApiKey, getConfig } from "../analyzer/config-manager.js";
+
+/**
+ * Check if a port is available
+ * @param {number} port - Port to check
+ * @returns {Promise<boolean>} - True if port is available
+ */
+async function isPortAvailable(port) {
+  return new Promise((resolve) => {
+    const server = createServer();
+    server.once('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        resolve(false);
+      } else {
+        resolve(false);
+      }
+    });
+    server.once('listening', () => {
+      server.close();
+      resolve(true);
+    });
+    server.listen(port);
+  });
+}
+
+/**
+ * Find an available port in a range
+ * @param {number} startPort - Starting port number
+ * @param {number} maxAttempts - Maximum number of ports to try (default: 10)
+ * @returns {Promise<number|null>} - Available port or null if none found
+ */
+async function findAvailablePort(startPort, maxAttempts = 10) {
+  for (let i = 0; i < maxAttempts; i++) {
+    const port = startPort + i;
+    if (await isPortAvailable(port)) {
+      return port;
+    }
+  }
+  return null;
+}
 
 /**
  * Simple API server for SmartMeter dashboard.
@@ -50,10 +90,53 @@ export class ApiServer {
       }
     });
 
-    return new Promise((resolve, reject) => {
-      this.server.listen(this.port, (err) => {
-        if (err) reject(err);
-        else resolve(this.port);
+    // Try to start on the requested port, or find an alternative
+    const requestedPort = this.port;
+    let resolved = false;
+    
+    return new Promise(async (resolve, reject) => {
+      const errorHandler = async (err) => {
+        if (resolved) return; // Prevent double handling
+        
+        if (err.code === 'EADDRINUSE') {
+          console.warn(`⚠ Port ${requestedPort} is already in use, finding alternative...`);
+          
+          // Find an available port
+          const availablePort = await findAvailablePort(requestedPort + 1, 10);
+          
+          if (availablePort) {
+            console.log(`✓ Using port ${availablePort} instead`);
+            this.port = availablePort;
+            
+            // Remove old listeners to avoid double-firing
+            this.server.removeAllListeners('error');
+            this.server.removeAllListeners('listening');
+            
+            // Try again with the new port
+            this.server.once('error', reject);
+            this.server.listen(availablePort, () => {
+              resolved = true;
+              resolve(availablePort);
+            });
+          } else {
+            resolved = true;
+            reject(new Error(`Unable to find available port. Tried ports ${requestedPort}-${requestedPort + 10}. Please close other SmartMeter instances or specify a different port with --api-port.`));
+          }
+        } else {
+          resolved = true;
+          reject(err);
+        }
+      };
+      
+      // Set up error handler
+      this.server.once('error', errorHandler);
+      
+      // Try the requested port
+      this.server.listen(requestedPort, () => {
+        if (!resolved) {
+          resolved = true;
+          resolve(requestedPort);
+        }
       });
     });
   }

@@ -22,6 +22,10 @@ import {
   cmdEvaluate,
   cmdGuide,
   cmdServe,
+  cmdDiff,
+  cmdCosts,
+  cmdConfig,
+  cmdHistory,
 } from "./commands.js";
 
 const program = new Command();
@@ -147,5 +151,30 @@ program
     apiPort: Number(opts.apiPort),
     open: opts.open 
   }));
+
+program
+  .command("diff")
+  .description("Compare current config with optimized or a backup version")
+  .option("-d, --data-dir <path>", "OpenClaw data directory (default: ~/.openclaw)")
+  .option("--version <filename>", "Compare with specific backup file")
+  .action((opts) => cmdDiff({ ...dataDirOpts(opts), version: opts.version }));
+
+program
+  .command("costs")
+  .description("Show detailed cost breakdown by model and category")
+  .option("-d, --data-dir <path>", "OpenClaw data directory (default: ~/.openclaw)")
+  .action((opts) => cmdCosts(dataDirOpts(opts)));
+
+program
+  .command("config")
+  .description("Get or set SmartMeter configuration")
+  .argument("[key]", "Configuration key to get or set")
+  .argument("[value]", "Value to set")
+  .action((key, value) => cmdConfig({ key, value }));
+
+program
+  .command("history")
+  .description("Show config backup/version history")
+  .action(() => cmdHistory());
 
 program.parse();

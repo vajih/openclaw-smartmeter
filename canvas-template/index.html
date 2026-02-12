@@ -3,207 +3,386 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartMeter Dashboard - OpenClaw Cost Optimization</title>
+    <title>SmartMeter — AI Cost Optimization Dashboard</title>
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
-    <div class="container">
-        <!-- Header -->
-        <header class="header">
-            <div class="header-content">
-                <div class="logo">
-                    <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-                        <rect width="40" height="40" rx="8" fill="#16a34a"/>
-                        <path d="M12 20L18 26L28 14" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                    <div class="logo-text">
-                        <h1>SmartMeter</h1>
-                        <p>AI Token Cost Optimization for OpenClaw</p>
-                    </div>
-                </div>
-                <div class="header-actions">
-                    <span class="last-updated">Updated: <span id="lastUpdated">--</span></span>
-                    <button class="btn-refresh" onclick="refreshDashboard()">
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                            <path d="M8 3V1L5 4l3 3V5a5 5 0 110 10 5 5 0 01-5-5H1a7 7 0 1014 0A7 7 0 008 3z"/>
-                        </svg>
-                        Refresh
-                    </button>
-                </div>
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-brand">
+            <div class="brand-icon">
+                <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="6" fill="var(--accent)"/><path d="M8 14L12 18L20 10" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <span class="brand-text">SmartMeter</span>
+        </div>
+        <nav class="sidebar-nav">
+            <a class="nav-item active" data-section="overview" onclick="navigateTo('overview')">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                Overview
+            </a>
+            <a class="nav-item" data-section="recommendations" onclick="navigateTo('recommendations')">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                Recommendations
+            </a>
+            <a class="nav-item" data-section="models" onclick="navigateTo('models')">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12V7H5a2 2 0 010-4h14v4"/><path d="M3 5v14a2 2 0 002 2h16v-5"/><path d="M18 12a2 2 0 000 4h4v-4h-4z"/></svg>
+                Models
+            </a>
+            <a class="nav-item" data-section="openrouter" onclick="navigateTo('openrouter')">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+                OpenRouter
+            </a>
+        </nav>
+        <div class="sidebar-footer">
+            <button class="btn-icon" onclick="exportReport()" title="Export Report">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </button>
+            <span class="sidebar-version">v0.3.0</span>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main" id="mainContent">
+        <!-- Top Bar -->
+        <header class="topbar">
+            <button class="btn-hamburger" onclick="toggleSidebar()">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+            <div class="topbar-title" id="pageTitle">Overview</div>
+            <div class="topbar-actions">
+                <span class="badge badge-live" id="liveBadge">
+                    <span class="pulse-dot"></span> Live
+                </span>
+                <span class="last-updated-text">Updated <span id="lastUpdated">--</span></span>
+                <button class="btn-icon" onclick="refreshDashboard()" title="Refresh">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+                </button>
             </div>
         </header>
 
-        <!-- Main Dashboard -->
-        <main class="dashboard">
-            <!-- Info Banner - Cost Data Notice -->
-            <div class="info-banner" id="costDataNotice" style="display: none;">
-                <div class="info-banner-icon">ℹ️</div>
-                <div class="info-banner-content">
-                    <div class="info-banner-title">About Cost Tracking</div>
-                    <div class="info-banner-text">
-                        SmartMeter analyzes cost data from your OpenClaw session files. If costs show as $0.00, 
-                        your OpenRouter API responses may not include cost information. SmartMeter will still 
-                        provide optimization recommendations based on token usage patterns.
+        <!-- Section: Overview -->
+        <section class="page-section active" id="section-overview">
+            <!-- How It Works Banner -->
+            <div class="how-it-works-banner">
+                <div class="hiw-header">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    <strong>How SmartMeter Works</strong>
+                </div>
+                <p class="hiw-desc">SmartMeter currently analyzes AI usage routed through <strong>OpenRouter</strong>. Connect your OpenRouter API key to unlock the full workflow:</p>
+                <div class="hiw-steps">
+                    <div class="hiw-step">
+                        <div class="hiw-step-num">1</div>
+                        <div>
+                            <div class="hiw-step-title">Analyze</div>
+                            <div class="hiw-step-desc">Parse your session logs to classify tasks, track costs, and break down model usage across all your OpenClaw agents.</div>
+                        </div>
+                    </div>
+                    <div class="hiw-step">
+                        <div class="hiw-step-num">2</div>
+                        <div>
+                            <div class="hiw-step-title">Evaluate</div>
+                            <div class="hiw-step-desc">Compare models side-by-side. See which models cost the most, which handle the most tasks, and where cheaper alternatives can save money without losing quality.</div>
+                        </div>
+                    </div>
+                    <div class="hiw-step">
+                        <div class="hiw-step-num">3</div>
+                        <div>
+                            <div class="hiw-step-title">Guide</div>
+                            <div class="hiw-step-desc">Get actionable recommendations — model switches, caching strategies, budget controls, and specialized agent configs — then apply them directly to your OpenClaw setup.</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="hiw-note">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+                    <span>Requires an <strong>OpenRouter API key</strong>. Go to <a href="#" onclick="navigateTo('openrouter'); return false;">OpenRouter settings</a> to connect your account.</span>
+                </div>
+            </div>
+
+            <!-- Info Banner -->
+            <div class="alert alert-info" id="costDataNotice" style="display:none;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                <div>
+                    <strong>About Cost Tracking</strong>
+                    <p>Your OpenRouter API responses may not include cost data. SmartMeter still optimizes based on token usage.</p>
+                </div>
+            </div>
+
+            <!-- KPI Row -->
+            <div class="kpi-row">
+                <div class="kpi-card kpi-hero">
+                    <div class="kpi-label">Total Savings Potential</div>
+                    <div class="kpi-value" id="savingsAmount">--</div>
+                    <div class="kpi-sub" id="savingsPercentage">--</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Current Cost</div>
+                    <div class="kpi-value" id="currentCost">$0.00<small>/mo</small></div>
+                </div>
+                <div class="kpi-card kpi-success">
+                    <div class="kpi-label">Optimized Cost</div>
+                    <div class="kpi-value" id="optimizedCost">$0.00<small>/mo</small></div>
+                </div>
+            </div>
+
+            <!-- Confidence badge -->
+            <div class="confidence-strip" id="confidenceBadge">
+                <span class="confidence-icon">ℹ️</span>
+                <span class="confidence-text">--</span>
+            </div>
+
+            <!-- Metric Cards -->
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <span class="metric-icon">📅</span>
+                    <div class="metric-body">
+                        <div class="metric-label">Analysis Period</div>
+                        <div class="metric-value" id="analysisPeriod">-- days</div>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <span class="metric-icon">📊</span>
+                    <div class="metric-body">
+                        <div class="metric-label">Tasks Analyzed</div>
+                        <div class="metric-value" id="totalTasks">--</div>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <span class="metric-icon">⚡</span>
+                    <div class="metric-body">
+                        <div class="metric-label">Cache Hit Rate</div>
+                        <div class="metric-value" id="cacheHitRate">--%</div>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <span class="metric-icon">💰</span>
+                    <div class="metric-body">
+                        <div class="metric-label">Daily Spend</div>
+                        <div class="metric-value" id="dailySpend">$0.00</div>
                     </div>
                 </div>
             </div>
 
-            <!-- OpenRouter Live Usage Section -->
-            <section class="openrouter-section" id="openRouterSection">
-                <div class="openrouter-card">
-                    <div class="openrouter-header">
-                        <h3>🔗 OpenRouter Actual Usage</h3>
-                        <button class="btn-config" onclick="openConfigModal()">⚙️ Configure API Key</button>
-                    </div>
-                    <div id="openRouterContent">
-                        <div class="openrouter-loading">Loading actual usage...</div>
-                    </div>
+            <!-- Charts -->
+            <div class="charts-row">
+                <div class="card chart-card">
+                    <div class="card-header">Model Usage &amp; Cost</div>
+                    <div class="chart-wrap"><canvas id="modelChart"></canvas></div>
                 </div>
-            </section>
+                <div class="card chart-card">
+                    <div class="card-header">Task Classification</div>
+                    <div class="chart-wrap"><canvas id="taskChart"></canvas></div>
+                </div>
+            </div>
 
-            <!-- Hero Section - Savings Display -->
-            <section class="hero-card">
-                <div class="savings-display">
-                    <div class="savings-label">Total Savings Potential</div>
-                    <div class="savings-amount" id="savingsAmount">--</div>
-                    <div class="savings-percentage" id="savingsPercentage">--</div>
-                </div>
-                <div class="cost-comparison">
-                    <div class="cost-item">
-                        <div class="cost-label">Current Cost</div>
-                        <div class="cost-value" id="currentCost">$0.00/mo</div>
-                    </div>
-                    <div class="cost-arrow">→</div>
-                    <div class="cost-item optimized">
-                        <div class="cost-label">Optimized Cost</div>
-                        <div class="cost-value" id="optimizedCost">$0.00/mo</div>
-                    </div>
-                </div>
-                <div class="confidence-badge" id="confidenceBadge">
-                    <span class="confidence-icon">ℹ️</span>
-                    <span class="confidence-text">--</span>
-                </div>
-            </section>
+            <!-- Quick Actions -->
+            <div class="actions-bar">
+                <button class="btn btn-outline" onclick="exportReport()">📄 Export Report</button>
+                <button class="btn btn-outline" onclick="viewConfig()">⚙️ Preview Config</button>
+                <button class="btn btn-primary" onclick="navigateTo('recommendations')">✨ View &amp; Apply Recommendations</button>
+            </div>
+        </section>
 
-            <!-- Stats Cards -->
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-icon">📅</div>
-                    <div class="stat-content">
-                        <div class="stat-label">Analysis Period</div>
-                        <div class="stat-value" id="analysisPeriod">-- days</div>
-                    </div>
+        <!-- Section: Recommendations -->
+        <section class="page-section" id="section-recommendations">
+            <div class="section-header">
+                <div>
+                    <h2>Optimization Recommendations</h2>
+                    <p class="section-subtitle">Compare models, predict savings, and customize your budget controls.</p>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-icon">📊</div>
-                    <div class="stat-content">
-                        <div class="stat-label">Tasks Analyzed</div>
-                        <div class="stat-value" id="totalTasks">--</div>
-                    </div>
+                <div class="section-actions">
+                    <button class="btn btn-outline btn-sm" onclick="resetAllEdits()">Reset All</button>
+                    <button class="btn btn-primary" onclick="applySelectedRecommendations()">
+                        ✅ Apply Selected
+                    </button>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-icon">⚡</div>
-                    <div class="stat-content">
-                        <div class="stat-label">Cache Hit Rate</div>
-                        <div class="stat-value" id="cacheHitRate">--%</div>
+            </div>
+
+            <!-- Savings Summary Banner -->
+            <div class="savings-banner" id="savingsBanner">
+                <div class="savings-banner-inner">
+                    <div class="savings-banner-left">
+                        <span class="savings-banner-icon">💰</span>
+                        <div>
+                            <div class="savings-banner-title">Projected Monthly Savings</div>
+                            <div class="savings-banner-amount" id="totalSavingsEstimate">$0.00/mo</div>
+                        </div>
                     </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon">💰</div>
-                    <div class="stat-content">
-                        <div class="stat-label">Daily Spend</div>
-                        <div class="stat-value" id="dailySpend">$0.00</div>
+                    <div class="savings-banner-right">
+                        <div class="savings-banner-stat">
+                            <span class="savings-stat-label">Current</span>
+                            <span class="savings-stat-value" id="bannerCurrentCost">$0.00</span>
+                        </div>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><polyline points="5 12 12 12 19 12"/><polyline points="15 8 19 12 15 16"/></svg>
+                        <div class="savings-banner-stat">
+                            <span class="savings-stat-label">Optimized</span>
+                            <span class="savings-stat-value savings-stat-green" id="bannerOptimizedCost">$0.00</span>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Charts Section -->
-            <div class="charts-grid">
-                <div class="chart-card">
-                    <h3>Model Usage & Cost</h3>
-                    <div class="chart-container">
-                        <canvas id="modelChart"></canvas>
-                    </div>
-                </div>
-                <div class="chart-card">
-                    <h3>Task Classification</h3>
-                    <div class="chart-container">
-                        <canvas id="taskChart"></canvas>
-                    </div>
-                </div>
+            <!-- Model Comparison by Task Tier -->
+            <div class="rec-section-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                Choose Models by Task Complexity
+            </div>
+            <div class="model-rec-explainer">
+                <p>Your tasks are grouped into <strong>three complexity tiers</strong> based on your OpenRouter usage patterns. For each tier, pick the model that best balances <strong>cost vs. quality</strong> for that type of work. The savings banner above updates in real-time as you make selections.</p>
+            </div>
+            <div id="modelRecommendationsList" class="model-rec-grid">
+                <!-- Dynamically filled -->
             </div>
 
-            <!-- Recommendations Section -->
-            <section class="recommendations-section">
-                <h2>🎯 Optimization Recommendations</h2>
-                <div id="recommendationsList" class="recommendations-list">
-                    <!-- Recommendations will be dynamically inserted -->
-                </div>
-            </section>
+            <!-- Other Recommendations -->
+            <div class="rec-section-title" style="margin-top:28px;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                Other Optimizations
+            </div>
+            <div id="otherRecommendationsList" class="recommendations-grid">
+                <!-- Dynamically filled -->
+            </div>
 
-            <!-- Details Section -->
-            <section class="details-section">
-                <div class="details-tabs">
-                    <button class="tab-btn active" onclick="switchTab('usage')">Usage Details</button>
-                    <button class="tab-btn" onclick="switchTab('models')">Model Breakdown</button>
-                    <button class="tab-btn" onclick="switchTab('timeline')">Cost Timeline</button>
+            <!-- Budget Controls -->
+            <div class="rec-section-title" style="margin-top:28px;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                Budget Controls
+            </div>
+            <div class="budget-controls-card" id="budgetControlsCard">
+                <div class="budget-controls-desc">
+                    Set spending limits to prevent unexpected costs. Changes are saved when you click Apply.
                 </div>
-                <div class="details-content" id="detailsContent">
-                    <!-- Content will be dynamically inserted based on active tab -->
-                </div>
-            </section>
-
-            <!-- Actions Footer -->
-            <footer class="actions-footer">
-                <div class="action-buttons">
-                    <button class="btn btn-secondary" onclick="exportReport()">
-                        📄 Export Report
-                    </button>
-                    <button class="btn btn-secondary" onclick="viewConfig()">
-                        ⚙️ Preview Config
-                    </button>
-                    <button class="btn btn-primary" onclick="applyOptimizations()">
-                        ✨ Apply Optimizations
-                    </button>
-                </div>
-                <div class="action-info">
-                    <p>💡 Tip: Click "Preview Config" to see exact changes before applying</p>
-                </div>
-            </footer>
-        </main>
-
-        <!-- OpenRouter API Key Configuration Modal -->
-        <div id="configModal" class="modal" style="display: none;">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2>Configure OpenRouter API Key</h2>
-                    <button class="modal-close" onclick="closeConfigModal()">×</button>
-                </div>
-                <div class="modal-body">
-                    <p>Enter your OpenRouter API key to view actual usage and compare with analyzed data.</p>
-                    <div class="form-group">
-                        <label for="apiKeyInput">OpenRouter API Key:</label>
-                        <input type="password" id="apiKeyInput" placeholder="sk-or-v1-..." class="api-key-input">
-                        <small class="form-hint">Your API key is stored locally and never shared.</small>
+                <div class="budget-grid">
+                    <div class="budget-field">
+                        <label class="budget-label">
+                            <span class="budget-label-icon">📅</span> Daily Cap
+                        </label>
+                        <div class="budget-input-row">
+                            <span class="budget-currency">$</span>
+                            <input type="number" id="budgetDailyCap" class="budget-input" min="0" step="0.10" value="2.40" oninput="onBudgetChange()">
+                            <span class="budget-unit">/day</span>
+                        </div>
+                        <div class="budget-hint">Pause tasks when daily spending exceeds this amount</div>
+                        <input type="range" id="budgetDailyCapSlider" class="budget-slider" min="0" max="20" step="0.10" value="2.40" oninput="syncBudgetSlider('budgetDailyCap', this.value)">
                     </div>
-                    <div id="configStatus" class="config-status"></div>
+                    <div class="budget-field">
+                        <label class="budget-label">
+                            <span class="budget-label-icon">⚠️</span> Weekly Alert
+                        </label>
+                        <div class="budget-input-row">
+                            <input type="number" id="budgetWeeklyAlert" class="budget-input" min="0" max="100" step="5" value="75" oninput="onBudgetChange()">
+                            <span class="budget-unit">% of weekly</span>
+                        </div>
+                        <div class="budget-hint">Get notified when weekly spend reaches this threshold</div>
+                        <input type="range" id="budgetWeeklyAlertSlider" class="budget-slider" min="0" max="100" step="5" value="75" oninput="syncBudgetSlider('budgetWeeklyAlert', this.value)">
+                    </div>
+                    <div class="budget-field">
+                        <label class="budget-label">
+                            <span class="budget-label-icon">🗓️</span> Monthly Budget
+                        </label>
+                        <div class="budget-input-row">
+                            <span class="budget-currency">$</span>
+                            <input type="number" id="budgetMonthly" class="budget-input" min="0" step="1" value="40" oninput="onBudgetChange()">
+                            <span class="budget-unit">/month</span>
+                        </div>
+                        <div class="budget-hint">Total monthly spending limit across all agents</div>
+                        <input type="range" id="budgetMonthlySlider" class="budget-slider" min="0" max="200" step="1" value="40" oninput="syncBudgetSlider('budgetMonthly', this.value)">
+                    </div>
+                    <div class="budget-field">
+                        <label class="budget-label">
+                            <span class="budget-label-icon">🛑</span> Auto-Pause
+                        </label>
+                        <div class="budget-input-row">
+                            <input type="number" id="budgetAutoPause" class="budget-input" min="0" max="100" step="5" value="95" oninput="onBudgetChange()">
+                            <span class="budget-unit">% of budget</span>
+                        </div>
+                        <div class="budget-hint">Automatically pause all agents at this spend level</div>
+                        <input type="range" id="budgetAutoPauseSlider" class="budget-slider" min="50" max="100" step="5" value="95" oninput="syncBudgetSlider('budgetAutoPause', this.value)">
+                    </div>
                 </div>
-                <div class="modal-footer">
-                    <button class="btn btn-secondary" onclick="closeConfigModal()">Cancel</button>
-                    <button class="btn btn-primary" onclick="saveApiKey()">Save & Validate</button>
+                <!-- Budget Impact Preview -->
+                <div class="budget-impact" id="budgetImpact">
+                    <div class="budget-impact-title">Impact Preview</div>
+                    <div class="budget-impact-grid" id="budgetImpactGrid">
+                        <!-- Dynamic -->
+                    </div>
                 </div>
+                <div class="budget-actions">
+                    <button class="btn btn-outline btn-sm" onclick="resetBudgetDefaults()">Reset to Defaults</button>
+                    <button class="btn btn-primary btn-sm" onclick="applyBudgetControls()">💾 Save Budget Controls</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section: Models -->
+        <section class="page-section" id="section-models">
+            <div class="section-header"><h2>Model Breakdown</h2></div>
+            <div class="card" id="modelDetailsCard">
+                <div class="empty-state"><p>No model data available yet.</p></div>
+            </div>
+        </section>
+
+        <!-- Section: OpenRouter -->
+        <section class="page-section" id="section-openrouter">
+            <div class="section-header">
+                <h2>OpenRouter Integration</h2>
+                <button class="btn btn-outline btn-sm" onclick="openConfigModal()">⚙️ Configure API Key</button>
+            </div>
+            <div class="card" id="openRouterContent">
+                <div class="empty-state">
+                    <p>Configure your OpenRouter API key to view live usage data.</p>
+                    <button class="btn btn-primary" onclick="openConfigModal()">Configure API Key</button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Config Modal -->
+    <div id="configModal" class="modal-overlay" style="display:none">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Configure OpenRouter API Key</h3>
+                <button class="btn-icon modal-close" onclick="closeConfigModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-desc">Enter your OpenRouter API key to view actual usage and compare with analyzed data.</p>
+                <label class="form-label" for="apiKeyInput">OpenRouter API Key</label>
+                <input type="password" id="apiKeyInput" placeholder="sk-or-v1-..." class="form-input">
+                <small class="form-hint">Your API key is stored locally and never shared.</small>
+                <div id="configStatus" class="config-status"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" onclick="closeConfigModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveApiKey()">Save &amp; Validate</button>
             </div>
         </div>
     </div>
 
-    <!-- Toast Notifications -->
+    <!-- Preview Modal -->
+    <div id="previewModal" class="modal-overlay" style="display:none">
+        <div class="modal modal-lg">
+            <div class="modal-header">
+                <h3>📋 Configuration Preview</h3>
+                <button class="btn-icon modal-close" onclick="closePreviewModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-desc">This configuration will be written to <code>~/.openclaw/openclaw.json</code></p>
+                <pre class="code-block" id="previewConfigCode"></pre>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" onclick="closePreviewModal()">Close</button>
+                <button class="btn btn-primary" onclick="applyOptimizations()">Apply Now</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
     <div id="toast" class="toast"></div>
 
-    <!-- Loading Overlay -->
+    <!-- Loading -->
     <div id="loadingOverlay" class="loading-overlay">
-        <div class="loading-spinner"></div>
-        <p>Loading dashboard...</p>
+        <div class="spinner"></div>
+        <p>Loading SmartMeter Dashboard…</p>
     </div>
 
     <script src="app.js"></script>

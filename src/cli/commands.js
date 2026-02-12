@@ -90,19 +90,21 @@ export async function cmdAnalyze(opts = {}) {
       // Start API server in background
       console.log("✓ Starting API server...");
       const apiServer = await startApiServer({ port: apiPort });
+      const actualApiPort = apiServer.server.address().port;
       
       // Start static file server in background
       console.log("✓ Starting dashboard server...");
       const staticServer = await startStaticFileServer(deployer.canvasDir, port);
+      const actualPort = staticServer.port;
       
-      const url = `http://localhost:${port}`;
+      const url = `http://localhost:${actualPort}`;
       
       console.log(`
 ✅ Dashboard is live!
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 🌐 Dashboard URL: ${url}
-📡 API Server:    http://localhost:${apiPort}
+📡 API Server:    http://localhost:${actualApiPort}
 
 💡 Features:
    • View cost savings and recommendations
@@ -117,7 +119,7 @@ Opening in your browser...
 
       // Open browser
       try {
-        await deployer.openDashboard(port);
+        await deployer.openDashboard(actualPort);
         console.log("✓ Browser opened\n");
       } catch (err) {
         console.log(`⚠ Could not open browser automatically`);
@@ -148,9 +150,13 @@ Opening in your browser...
       await new Promise(() => {}); // Never resolves, keeps process alive
       
     } catch (err) {
-      console.error(`\n⚠ Could not start dashboard: ${err.message}`);
-      console.log(`\nYou can view your analysis by running:`);
-      console.log(`  smartmeter status`);
+      console.error(`\n❌ Could not start dashboard: ${err.message}\n`);
+      console.log(`💡 Tips:`);
+      console.log(`   • Make sure no other SmartMeter instances are running`);
+      console.log(`   • Try specifying different ports: --port 8081 --api-port 3002`);
+      console.log(`   • Check for processes using ports: lsof -i :${opts.port || 8080} -i :${opts.apiPort || 3001}`);
+      console.log(`\nYou can still view your analysis by running:`);
+      console.log(`  smartmeter status\n`);
       console.log(`\nOr start the dashboard manually:`);
       console.log(`  smartmeter serve\n`);
     }
@@ -531,6 +537,224 @@ smartmeter rollback
   return { analysis, config };
 }
 
+/**
+ * Compare two config versions or current vs optimized.
+ */
+export async function cmdDiff(opts = {}) {
+  const configPath = opts.configPath || CONFIG_PATH;
+  const backupDir = opts.backupDir || OPENCLAW_DIR;
+
+  // Get current config
+  const currentConfig = await readCurrentConfig(configPath);
+
+  let compareConfig;
+  let compareLabel;
+
+  if (opts.version) {
+    // Compare with specific backup version
+    const backupPath = join(backupDir, opts.version);
+    try {
+      const data = await readFile(backupPath, "utf8");
+      compareConfig = JSON.parse(data);
+      compareLabel = opts.version;
+    } catch {
+      console.log(`Backup not found: ${opts.version}`);
+      return null;
+    }
+  } else {
+    // Compare current with optimized
+    const analysis = await runPipeline(opts);
+    if (!analysis) {
+      console.log("No session data found.");
+      return null;
+    }
+    const { config } = generateConfig(analysis, currentConfig);
+    compareConfig = config;
+    compareLabel = "optimized";
+  }
+
+  console.log(`\n╔════════════════════════════════════════════════════════╗`);
+  console.log(`║          SmartMeter Config Diff                       ║`);
+  console.log(`╚════════════════════════════════════════════════════════╝\n`);
+  console.log(`Comparing: current ↔ ${compareLabel}\n`);
+
+  const diffs = diffObjects(currentConfig, compareConfig);
+  if (diffs.length === 0) {
+    console.log("  No differences found.");
+  } else {
+    for (const d of diffs) {
+      console.log(`  ${d.path}:`);
+      console.log(`    - ${JSON.stringify(d.old)}`);
+      console.log(`    + ${JSON.stringify(d.new)}\n`);
+    }
+  }
+
+  return diffs;
+}
+
+/**
+ * Show cost breakdown by model and category.
+ */
+export async function cmdCosts(opts = {}) {
+  const storageDir = opts.storageDir || SMARTMETER_DIR;
+  let analysis = await readAnalysis(storageDir);
+
+  if (!analysis) {
+    // Try running pipeline
+    analysis = await runPipeline(opts);
+    if (!analysis) {
+      console.log("No analysis found. Run `smartmeter analyze` first.");
+      return null;
+    }
+  }
+
+  console.log(`\n╔════════════════════════════════════════════════════════╗`);
+  console.log(`║          SmartMeter Cost Breakdown                    ║`);
+  console.log(`╚════════════════════════════════════════════════════════╝`);
+
+  console.log(`\n📊 By Model:\n`);
+  const models = Object.entries(analysis.models || {});
+  models.sort((a, b) => b[1].cost - a[1].cost);
+  for (const [name, m] of models) {
+    const pct = analysis.summary.totalCost > 0
+      ? ((m.cost / analysis.summary.totalCost) * 100).toFixed(1)
+      : "0.0";
+    console.log(`  ${name}`);
+    console.log(`    Tasks: ${m.count}  |  Cost: $${m.cost.toFixed(2)}  |  Avg: $${m.avgCostPerTask.toFixed(4)}/task  |  Share: ${pct}%`);
+  }
+
+  console.log(`\n📂 By Category:\n`);
+  const cats = Object.entries(analysis.categories || {});
+  for (const [name, c] of cats) {
+    let catCost = 0;
+    for (const mb of Object.values(c.modelBreakdown)) {
+      catCost += mb.totalCost || 0;
+    }
+    console.log(`  ${name}: ${c.count} tasks, $${catCost.toFixed(2)} total`);
+    for (const [model, mb] of Object.entries(c.modelBreakdown)) {
+      console.log(`    └─ ${model}: ${mb.count} tasks, $${mb.avgCost.toFixed(4)}/task`);
+    }
+  }
+
+  console.log(`\n💰 Summary:`);
+  console.log(`  Total cost:    $${analysis.summary.totalCost.toFixed(2)}`);
+  console.log(`  Monthly proj:  $${analysis.summary.currentMonthlyCost.toFixed(2)}`);
+  console.log(`  Cache savings: $${(analysis.caching?.estimatedCacheSavings || 0).toFixed(2)}\n`);
+
+  return analysis;
+}
+
+/**
+ * Get or set SmartMeter configuration values.
+ */
+export async function cmdConfig(opts = {}) {
+  const { getConfig, saveConfig } = await import("../analyzer/config-manager.js");
+  const config = await getConfig();
+
+  if (opts.key && opts.value !== undefined) {
+    // Set mode
+    config[opts.key] = opts.value;
+    config.lastUpdated = new Date().toISOString();
+    await saveConfig(config);
+    console.log(`✓ Set ${opts.key} = ${opts.value}`);
+    return config;
+  }
+
+  if (opts.key) {
+    // Get specific key
+    const val = config[opts.key];
+    if (val !== undefined) {
+      console.log(`${opts.key} = ${JSON.stringify(val)}`);
+    } else {
+      console.log(`Key '${opts.key}' not set.`);
+    }
+    return val;
+  }
+
+  // Show all config
+  console.log(`\n╔════════════════════════════════════════════════════════╗`);
+  console.log(`║          SmartMeter Configuration                     ║`);
+  console.log(`╚════════════════════════════════════════════════════════╝\n`);
+  
+  for (const [key, value] of Object.entries(config)) {
+    if (key === "openRouterApiKey" && value) {
+      console.log(`  ${key} = ${value.substring(0, 9)}...${value.substring(value.length - 4)}`);
+    } else {
+      console.log(`  ${key} = ${JSON.stringify(value)}`);
+    }
+  }
+  console.log();
+
+  return config;
+}
+
+/**
+ * Show config backup/version history.
+ */
+export async function cmdHistory(opts = {}) {
+  const backupDir = opts.backupDir || OPENCLAW_DIR;
+
+  let entries;
+  try {
+    entries = await readdir(backupDir);
+  } catch {
+    console.log("No backup directory found.");
+    return [];
+  }
+
+  const backups = entries
+    .filter((f) => f.startsWith("openclaw.json.backup-"))
+    .sort()
+    .reverse();
+
+  console.log(`\n╔════════════════════════════════════════════════════════╗`);
+  console.log(`║          SmartMeter Config History                    ║`);
+  console.log(`╚════════════════════════════════════════════════════════╝\n`);
+
+  if (backups.length === 0) {
+    console.log("  No config backups found. Backups are created when you run `smartmeter apply`.\n");
+    return [];
+  }
+
+  console.log(`  Found ${backups.length} backup(s):\n`);
+  for (let i = 0; i < backups.length; i++) {
+    const ts = backups[i].replace("openclaw.json.backup-", "").replace(/-/g, function(m, offset) {
+      // First 10 chars are date, rest is time
+      return offset < 10 ? "-" : ":";
+    });
+    const label = i === 0 ? " (latest)" : "";
+    console.log(`  ${i + 1}. ${backups[i]}${label}`);
+  }
+
+  console.log(`\n💡 To rollback to the latest: smartmeter rollback`);
+  console.log(`💡 To compare with a backup: smartmeter diff --version <backup-filename>\n`);
+
+  return backups;
+}
+
+/**
+ * Simple deep diff between two objects. Returns array of { path, old, new }.
+ */
+function diffObjects(obj1, obj2, prefix = "") {
+  const diffs = [];
+  const allKeys = new Set([...Object.keys(obj1 || {}), ...Object.keys(obj2 || {})]);
+
+  for (const key of allKeys) {
+    if (key === "_smartmeter") continue; // Skip metadata
+    const path = prefix ? `${prefix}.${key}` : key;
+    const v1 = (obj1 || {})[key];
+    const v2 = (obj2 || {})[key];
+
+    if (typeof v1 === "object" && typeof v2 === "object" && v1 !== null && v2 !== null && !Array.isArray(v1) && !Array.isArray(v2)) {
+      diffs.push(...diffObjects(v1, v2, path));
+    } else if (JSON.stringify(v1) !== JSON.stringify(v2)) {
+      diffs.push({ path, old: v1, new: v2 });
+    }
+  }
+
+  return diffs;
+}
+
 export async function cmdServe(opts = {}) {
   const port = opts.port || 8080;
   const apiPort = opts.apiPort || 3001;
@@ -563,22 +787,25 @@ export async function cmdServe(opts = {}) {
     console.log("⚠ No analysis data. Run 'smartmeter analyze' first.");
   }
 
-  // Start API server
-  console.log("\n🚀 Starting API server...");
-  const apiServer = await startApiServer({ port: apiPort });
+  try {
+    // Start API server
+    console.log("\n🚀 Starting API server...");
+    const apiServer = await startApiServer({ port: apiPort });
+    const actualApiPort = apiServer.server.address().port;
 
-  // Start static file server (using Node.js)
-  console.log(`\n🚀 Starting dashboard server on port ${port}...`);
-  const staticServer = await startStaticFileServer(deployer.canvasDir, port);
+    // Start static file server (using Node.js)
+    console.log(`\n🚀 Starting dashboard server on port ${port}...`);
+    const staticServer = await startStaticFileServer(deployer.canvasDir, port);
+    const actualPort = staticServer.port;
 
-  const url = `http://localhost:${port}`;
-  console.log(`
+    const url = `http://localhost:${actualPort}`;
+    console.log(`
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ✅ SmartMeter is ready!
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 🌐 Dashboard:  ${url}
-📡 API Server: http://localhost:${apiPort}
+📡 API Server: http://localhost:${actualApiPort}
 
 💡 Features enabled:
    • Live dashboard updates (auto-refresh every 5s)
@@ -590,30 +817,74 @@ Press Ctrl+C to stop all servers
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 `);
 
-  if (shouldOpen) {
-    console.log("🌐 Opening dashboard in browser...");
-    try {
-      await deployer.openDashboard(port);
-    } catch (err) {
-      console.log(`  Open manually: ${url}`);
+    if (shouldOpen) {
+      console.log("🌐 Opening dashboard in browser...");
+      try {
+        await deployer.openDashboard(actualPort);
+      } catch (err) {
+        console.log(`  Open manually: ${url}`);
+      }
     }
+
+    // Handle shutdown
+    process.on("SIGINT", async () => {
+      console.log("\n\n🛑 Shutting down servers...");
+      await staticServer.stop();
+      await apiServer.stop();
+      console.log("✓ Servers stopped");
+      process.exit(0);
+    });
+
+    return { url, apiPort: actualApiPort, deployer, apiServer, staticServer };
+  } catch (err) {
+    console.error(`\n❌ Failed to start servers: ${err.message}\n`);
+    console.log(`💡 Tips:`);
+    console.log(`   • Make sure no other SmartMeter instances are running`);
+    console.log(`   • Try specifying different ports: --port 8081 --api-port 3002`);
+    console.log(`   • Check for processes using these ports: lsof -i :${port} -i :${apiPort}\n`);
+    return null;
   }
-
-  // Handle shutdown
-  process.on("SIGINT", async () => {
-    console.log("\n\n🛑 Shutting down servers...");
-    await staticServer.stop();
-    await apiServer.stop();
-    console.log("✓ Servers stopped");
-    process.exit(0);
-  });
-
-  return { url, apiPort, deployer, apiServer, staticServer };
 }
 
 /**
  * Start a simple static file server
  */
+/**
+ * Check if a port is available
+ * @param {number} port - Port to check
+ * @returns {Promise<boolean>} - True if port is available
+ */
+async function isPortAvailable(port) {
+  const { createServer } = await import("node:http");
+  return new Promise((resolve) => {
+    const server = createServer();
+    server.once('error', (err) => {
+      resolve(false);
+    });
+    server.once('listening', () => {
+      server.close();
+      resolve(true);
+    });
+    server.listen(port);
+  });
+}
+
+/**
+ * Find an available port in a range
+ * @param {number} startPort - Starting port number
+ * @param {number} maxAttempts - Maximum number of ports to try (default: 10)
+ * @returns {Promise<number|null>} - Available port or null if none found
+ */
+async function findAvailablePort(startPort, maxAttempts = 10) {
+  for (let i = 0; i < maxAttempts; i++) {
+    const port = startPort + i;
+    if (await isPortAvailable(port)) {
+      return port;
+    }
+  }
+  return null;
+}
+
 async function startStaticFileServer(directory, port) {
   const { createServer } = await import("node:http");
   const { readFile, stat } = await import("node:fs/promises");
@@ -657,16 +928,50 @@ async function startStaticFileServer(directory, port) {
     }
   });
 
-  return new Promise((resolve, reject) => {
-    server.listen(port, (err) => {
-      if (err) {
-        reject(err);
+  // Try to start on the requested port, or find an alternative
+  const requestedPort = port;
+  
+  return new Promise(async (resolve, reject) => {
+    // First try the requested port
+    server.once('error', async (err) => {
+      if (err.code === 'EADDRINUSE') {
+        console.warn(`⚠ Port ${requestedPort} is already in use, finding alternative...`);
+        
+        // Find an available port
+        const availablePort = await findAvailablePort(requestedPort + 1, 10);
+        
+        if (availablePort) {
+          console.log(`✓ Using port ${availablePort} instead`);
+          server.listen(availablePort, (err) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve({
+                server,
+                port: availablePort,
+                stop: () => new Promise((res) => server.close(() => res())),
+              });
+            }
+          });
+        } else {
+          reject(new Error(`Unable to find available port. Tried ports ${requestedPort}-${requestedPort + 10}. Please close other SmartMeter instances or specify a different port with --port.`));
+        }
       } else {
+        reject(err);
+      }
+    });
+    
+    server.listen(requestedPort, (err) => {
+      if (err && err.code !== 'EADDRINUSE') {
+        reject(err);
+      } else if (!err) {
         resolve({
           server,
+          port: requestedPort,
           stop: () => new Promise((res) => server.close(() => res())),
         });
       }
+      // EADDRINUSE is handled by the error listener above
     });
   });
 }

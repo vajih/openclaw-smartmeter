@@ -21,19 +21,28 @@ export async function fetchOpenRouterUsage(apiKey) {
     // Fetch credits/balance
     const creditsData = await makeRequest('/auth/key', apiKey);
     
-    // Calculate usage based on available data
+    // Build SPEC-compliant response shape
+    const limit = creditsData.data?.limit ?? 0;
+    const used = creditsData.data?.usage ?? 0;
+
     const usage = {
       success: true,
       timestamp: new Date().toISOString(),
+      credits: {
+        total: limit,
+        used: used,
+        remaining: limit - used,
+      },
+      models: creditsData.data?.models || [],
+      rate: creditsData.data?.rate || {},
+      // Keep backward-compat fields
       account: {
         label: creditsData.data?.label || 'Unknown',
-        limit: creditsData.data?.limit || null,
-        usageBalance: creditsData.data?.usage || null,
-        limitRemaining: creditsData.data?.limit_remaining || null,
+        limit: limit,
+        usageBalance: used,
+        limitRemaining: creditsData.data?.limit_remaining ?? (limit - used),
         isFreeTier: creditsData.data?.is_free_tier || false,
       },
-      // OpenRouter returns usage in USD cents typically
-      totalSpent: creditsData.data?.usage ? (creditsData.data.usage / 100) : null,
       note: 'OpenRouter API integration active'
     };
 
