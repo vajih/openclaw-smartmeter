@@ -76,18 +76,45 @@ function updateHeroCard(data) {
     const savings = data.monthly_projected_current - data.monthly_projected_optimized;
     const savingsPercent = ((savings / data.monthly_projected_current) * 100).toFixed(1);
     
-    document.getElementById('savingsAmount').textContent = `$${savings.toFixed(2)}/mo`;
-    document.getElementById('savingsPercentage').textContent = `${savingsPercent}% savings`;
-    document.getElementById('currentCost').textContent = `$${data.monthly_projected_current.toFixed(2)}/mo`;
-    document.getElementById('optimizedCost').textContent = `$${data.monthly_projected_optimized.toFixed(2)}/mo`;
+    // Check if we have insufficient data for meaningful analysis
+    const hasInsufficientData = isInsufficientData(data);
     
-    // Update confidence badge
-    const badge = document.getElementById('confidenceBadge');
-    const confidenceText = getConfidenceText(data.confidence_level, data.days_analyzed);
-    badge.innerHTML = `
-        <span class="confidence-icon">${getConfidenceIcon(data.confidence_level)}</span>
-        <span class="confidence-text">${confidenceText}</span>
-    `;
+    // Show cost data notice if costs are zero but we have usage
+    const costDataNotice = document.getElementById('costDataNotice');
+    if (data.monthly_projected_current === 0 && data.total_tasks > 0) {
+        costDataNotice.style.display = 'flex';
+    } else {
+        costDataNotice.style.display = 'none';
+    }
+    
+    if (hasInsufficientData) {
+        // Show professional message about needing more data
+        document.getElementById('savingsAmount').textContent = '📊';
+        document.getElementById('savingsPercentage').textContent = 'Analyzing...';
+        document.getElementById('currentCost').innerHTML = '<span class="insufficient-data">Insufficient data</span>';
+        document.getElementById('optimizedCost').innerHTML = '<span class="insufficient-data">Gathering usage...</span>';
+        
+        // Show helpful message in confidence badge
+        const badge = document.getElementById('confidenceBadge');
+        badge.innerHTML = `
+            <span class="confidence-icon">💡</span>
+            <span class="confidence-text">Need more usage data for accurate cost analysis (${data.total_tasks} tasks, ${data.days_analyzed} days so far)</span>
+        `;
+    } else {
+        // Normal display with actual costs
+        document.getElementById('savingsAmount').textContent = `$${savings.toFixed(2)}/mo`;
+        document.getElementById('savingsPercentage').textContent = `${savingsPercent}% savings`;
+        document.getElementById('currentCost').textContent = `$${data.monthly_projected_current.toFixed(2)}/mo`;
+        document.getElementById('optimizedCost').textContent = `$${data.monthly_projected_optimized.toFixed(2)}/mo`;
+        
+        // Update confidence badge
+        const badge = document.getElementById('confidenceBadge');
+        const confidenceText = getConfidenceText(data.confidence_level, data.days_analyzed);
+        badge.innerHTML = `
+            <span class="confidence-icon">${getConfidenceIcon(data.confidence_level)}</span>
+            <span class="confidence-text">${confidenceText}</span>
+        `;
+    }
 }
 
 // Update stats cards
@@ -339,6 +366,18 @@ function generateTimelineDetails(data) {
 }
 
 // Helper functions
+function isInsufficientData(data) {
+    // Insufficient data if:
+    // 1. Total costs are zero or near-zero (< $0.01)
+    // 2. Less than 5 tasks analyzed
+    // 3. Less than 1 day of data
+    const hasNoCosts = data.monthly_projected_current < 0.01;
+    const hasMinimalTasks = data.total_tasks < 5;
+    const hasMinimalDays = data.days_analyzed < 1;
+    
+    return hasNoCosts || hasMinimalTasks || hasMinimalDays;
+}
+
 function getConfidenceIcon(level) {
     const icons = {
         'high': '✅',

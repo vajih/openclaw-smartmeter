@@ -106,13 +106,15 @@ Analysis: 2026-02-04 to 2026-02-05 (2 days)
 ### 2. Use the Dashboard (already open!)
 
 The dashboard automatically opened in step 1, showing:
+
 - Cost savings overview with before/after comparison
 - Model usage breakdown (bar chart)
-- Task classification distribution (doughnut chart)  
+- Task classification distribution (doughnut chart)
 - Actionable recommendations with impact estimates
 - Auto-refresh every 5 seconds
 
 **Dashboard Actions:**
+
 - 🎯 **Apply Optimizations** - One click to apply all changes (creates backup)
 - 📄 **Export Report** - Download markdown report
 - ⚙️ **Preview Config** - See exact changes before applying
@@ -307,6 +309,21 @@ Session Logs (.jsonl)
 4. **Budget Controls** — Daily/weekly caps with alert thresholds to prevent runaway costs
 5. **Caching** — Long retention and heartbeat settings for burst usage patterns
 6. **Skill Routing** — Ready for per-skill model assignment (awaiting skill log format)
+
+### Important Notes on Cost Tracking
+
+**Cost Data Source**: SmartMeter extracts cost information from your OpenClaw session files (`.jsonl`). If the dashboard shows $0.00 costs even though you have actual API usage:
+
+- **Root Cause**: OpenRouter may not be including cost data in API responses, resulting in session files with `cost: {total: 0}`
+- **Impact**: SmartMeter can still provide optimization recommendations based on token usage patterns, but cost calculations will be unavailable
+- **Solution**: SmartMeter will detect this scenario and display professional messaging indicating that more usage data is needed or that cost tracking is limited
+
+**Data Requirements**: For accurate cost analysis, SmartMeter needs:
+- Minimum 5 tasks analyzed
+- At least 1 day of usage data
+- session files with non-zero cost values
+
+When these conditions aren't met, the dashboard displays a helpful message instead of misleading $0.00 values.
 
 ## Architecture
 
