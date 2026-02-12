@@ -68,9 +68,14 @@ export function generateConfig(analysis, currentConfig = {}) {
   }
 
   // 5. Budget controls
+  // Use minimum budget values when costs are zero or very low to ensure valid config
+  const MIN_DAILY_BUDGET = 1.00;  // $1/day minimum
+  const MIN_WEEKLY_BUDGET = 5.00; // $5/week minimum
+  
   const dailyAvg = (analysis.summary.currentMonthlyCost || 0) / 30;
-  const dailyBudget = Math.ceil(dailyAvg * 1.2 * 100) / 100;
-  const weeklyBudget = Math.ceil(dailyBudget * 7 * 100) / 100;
+  const calculatedDaily = Math.ceil(dailyAvg * 1.2 * 100) / 100;
+  const dailyBudget = Math.max(calculatedDaily, MIN_DAILY_BUDGET);
+  const weeklyBudget = Math.max(Math.ceil(dailyBudget * 7 * 100) / 100, MIN_WEEKLY_BUDGET);
 
   config.agents.defaults.budget = deepMerge(
     config.agents.defaults.budget || {},

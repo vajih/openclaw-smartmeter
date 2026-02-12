@@ -1,4 +1,4 @@
-const ALLOWED_TOP_KEYS = new Set([
+const SMARTMETER_KEYS = new Set([
   "agents",
   "skills",
   "models",
@@ -9,6 +9,10 @@ const ALLOWED_TOP_KEYS = new Set([
 /**
  * Validate an openclaw config object.
  * Returns { valid: boolean, errors: string[] }.
+ * 
+ * Note: This validator focuses on SmartMeter-managed fields only.
+ * It allows other OpenClaw config keys (meta, wizard, auth, tools, etc.)
+ * to pass through without validation.
  */
 export function validate(config) {
   const errors = [];
@@ -17,12 +21,8 @@ export function validate(config) {
     return { valid: false, errors: ["Config must be a non-null object"] };
   }
 
-  // Check top-level keys
-  for (const key of Object.keys(config)) {
-    if (!ALLOWED_TOP_KEYS.has(key)) {
-      errors.push(`Unknown top-level key: "${key}"`);
-    }
-  }
+  // Only validate SmartMeter-managed keys, not the entire OpenClaw config
+  // This allows existing OpenClaw configs to merge without validation errors
 
   // agents.defaults.model.primary must exist and be a string
   const primary = config.agents?.defaults?.model?.primary;
