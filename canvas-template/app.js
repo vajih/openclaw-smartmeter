@@ -554,6 +554,9 @@ async function applyOptimizations() {
  * Check if OpenRouter API key is configured
  */
 async function checkOpenRouterConfig() {
+    // Always show OpenRouter section
+    document.getElementById('openRouterSection').style.display = 'block';
+    
     try {
         const response = await fetch(`${API_BASE_URL}/config/openrouter-key`);
         if (response.ok) {
@@ -561,12 +564,16 @@ async function checkOpenRouterConfig() {
             openRouterConfigured = data.configured;
             
             if (openRouterConfigured) {
-                document.getElementById('openRouterSection').style.display = 'block';
                 await fetchOpenRouterUsage();
+            } else {
+                // Show configure prompt
+                updateOpenRouterDisplay({ configured: false });
             }
         }
     } catch (error) {
         console.log('OpenRouter config check failed (API server may not be running):', error.message);
+        // Still show section with configuration prompt
+        updateOpenRouterDisplay({ configured: false });
     }
 }
 

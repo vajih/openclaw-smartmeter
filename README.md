@@ -334,25 +334,28 @@ SmartMeter can connect to your OpenRouter account to fetch actual usage data and
 **Setting Up OpenRouter Integration:**
 
 1. **Get Your API Key**: Log in to [OpenRouter](https://openrouter.ai) and generate an API key from your account settings
-2. **Configure in Dashboard**: 
+2. **Configure in Dashboard**:
    - Open SmartMeter dashboard (`smartmeter analyze`)
    - Click "⚙️ Configure API Key" in the OpenRouter section
    - Enter your OpenRouter API key (starts with `sk-or-`)
    - Dashboard will validate and securely store it locally
 
 **What You'll See:**
+
 - **Actual Usage**: Real costs from your OpenRouter account
 - **Account Info**: Balance, usage, and account type
 - **Comparison**: Side-by-side view of analyzed vs actual costs
 - **Discrepancy Detection**: Highlights if session data doesn't match actual usage
 
 **Security:**
+
 - API key stored locally in `~/.openclaw/smartmeter/config.json`
 - Never transmitted to external services
 - Only used to fetch your usage data from OpenRouter
 - Can be removed anytime from the dashboard
 
 **API Endpoints:**
+
 - `GET /api/config/openrouter-key` - Check if key is configured
 - `POST /api/config/openrouter-key` - Set/validate API key
 - `GET /api/openrouter-usage` - Fetch actual usage data

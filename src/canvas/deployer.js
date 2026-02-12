@@ -163,7 +163,7 @@ export class CanvasDeployer {
    * Return the canvas URL for the given gateway port.
    */
   getCanvasUrl(port = 8080) {
-    return `http://localhost:${port}/__openclaw__/canvas/smartmeter/`;
+    return `http://localhost:${port}`;
   }
 
   /**
