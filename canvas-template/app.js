@@ -123,6 +123,7 @@ function renderAll() {
   safe(updateModelDetails);
   safe(updateLastUpdated);
   safe(checkCostDataNotice);
+  safe(() => populateStepPanel(activeStep));
 }
 
 /* ─── KPIs ─── */
@@ -991,6 +992,228 @@ async function initGetStartedCard() {
   }
 }
 
+/* ─── Step Panels (Analyze / Evaluate / Guide) ─── */
+let activeStep = 1;
+
+function activateStep(n) {
+  activeStep = n;
+  // Toggle active class on step elements
+  for (let i = 1; i <= 3; i++) {
+    const step = document.getElementById('gsStep' + i);
+    if (step) step.classList.toggle('gs-step-active', i === n);
+  }
+  // Show/hide panels
+  for (let i = 1; i <= 3; i++) {
+    const panel = document.getElementById('gsPanel' + i);
+    if (panel) panel.style.display = (i === n) ? '' : 'none';
+  }
+  // Populate panel content
+  populateStepPanel(n);
+  // Update contextual info banner
+  updateContextualBanner(n);
+}
+
+function populateStepPanel(n) {
+  const d = analysisData;
+  if (n === 1) {
+    const panel = document.getElementById('gsPanel1');
+    if (!panel) return;
+    if (!d) {
+      panel.innerHTML = '<p class="panel-empty">Run an analysis to see your usage summary here.</p>';
+      return;
+    }
+    const days = d.days_analyzed || 0;
+    const tasks = d.total_tasks || 0;
+    const current = d.monthly_projected_current || 0;
+    const optimized = d.monthly_projected_optimized || 0;
+    const models = (d.model_breakdown || []).length;
+    panel.innerHTML = `
+      <h4>Analysis Summary</h4>
+      <p>${days} day${days !== 1 ? 's' : ''} analyzed &middot; ${tasks} task${tasks !== 1 ? 's' : ''} &middot; ${models} model${models !== 1 ? 's' : ''} detected</p>
+      <table>
+        <tr><td>Projected Monthly Cost</td><td style="text-align:right;font-weight:600">$${current.toFixed(2)}</td></tr>
+        <tr><td>Optimized Projection</td><td style="text-align:right;font-weight:600;color:var(--green)">$${optimized.toFixed(2)}</td></tr>
+        <tr><td>Potential Savings</td><td style="text-align:right;font-weight:600;color:var(--accent)">$${(current - optimized).toFixed(2)}</td></tr>
+      </table>`;
+  } else if (n === 2) {
+    const panel = document.getElementById('gsPanel2');
+    if (!panel) return;
+    const models = d ? (d.model_breakdown || []) : [];
+    if (models.length === 0) {
+      panel.innerHTML = '<p class="panel-empty">No model data available yet. Run an analysis first.</p>';
+      return;
+    }
+    const totalCost = models.reduce((s, m) => s + m.cost, 0);
+    panel.innerHTML = `
+      <h4>Model Cost Breakdown</h4>
+      <table>
+        <thead><tr>
+          <th>Model</th><th>Tasks</th><th>Cost</th><th>Avg/Task</th><th>Share</th>
+        </tr></thead>
+        <tbody>
+          ${models.map(m => {
+            const share = totalCost > 0 ? ((m.cost / totalCost) * 100).toFixed(1) : '0.0';
+            return `<tr>
+              <td>${escHtml(m.model)}</td>
+              <td>${m.tasks}</td>
+              <td>$${m.cost.toFixed(2)}</td>
+              <td>$${m.avg_cost_per_task.toFixed(3)}</td>
+              <td>${share}%</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>`;
+  } else if (n === 3) {
+    const panel = document.getElementById('gsPanel3');
+    if (!panel) return;
+    const recs = d ? (d.recommendations || []) : [];
+    if (recs.length === 0) {
+      panel.innerHTML = '<p class="panel-empty">No recommendations available yet. Run an analysis first.</p>';
+      return;
+    }
+    panel.innerHTML = `
+      <h4>Recommendations</h4>
+      <p>Toggle on the optimizations you want to activate, then hit Apply.</p>
+      <div class="gs-rec-list">
+        ${recs.map((r, i) => {
+          const impactClass = (r.impact || '').toLowerCase().includes('high') ? 'high'
+            : (r.impact || '').toLowerCase().includes('medium') ? 'medium' : 'low';
+          const checked = editedRecommendations[i] && editedRecommendations[i].selected ? 'checked' : '';
+          return `<label class="gs-rec-row" data-index="${i}">
+            <input type="checkbox" class="gs-rec-toggle" ${checked} onchange="toggleGuideRec(${i}, this.checked)">
+            <div class="gs-rec-body">
+              <div class="gs-rec-header">
+                <span class="rec-title">${escHtml(r.title)}</span>
+                ${r.impact ? `<span class="rec-impact ${impactClass}">${escHtml(r.impact)}</span>` : ''}
+              </div>
+              <div class="rec-desc">${escHtml(r.description)}</div>
+            </div>
+          </label>`;
+        }).join('')}
+      </div>
+      <div class="gs-rec-actions">
+        <button class="btn btn-primary" onclick="applyGuideRecommendations()">Apply Selected</button>
+        <span class="gs-rec-count" id="gsRecCount">${Object.values(editedRecommendations).filter(v => v.selected).length} selected</span>
+      </div>`;
+  }
+}
+
+function updateContextualBanner(n) {
+  const notice = document.getElementById('costDataNotice');
+  const content = document.getElementById('costDataNoticeContent');
+  if (!notice || !content) return;
+
+  const messages = {
+    1: {
+      title: 'About Cost Tracking',
+      text: 'Your OpenRouter API responses may not include cost data. SmartMeter still optimizes based on token usage.'
+    },
+    2: {
+      title: 'Understanding Model Costs',
+      text: 'Costs are based on token usage reported by OpenRouter. Compare models to find cheaper alternatives for similar tasks.'
+    },
+    3: {
+      title: 'Applying Recommendations',
+      text: 'Select recommendations below to apply them. Changes update your OpenClaw configuration for optimized model routing.'
+    }
+  };
+
+  const msg = messages[n] || messages[1];
+  const d = analysisData;
+  const hasCostData = d && (d.monthly_projected_current || 0) > 0;
+
+  // Show banner contextually: always for step 2/3 if data exists, or step 1 if no cost data
+  if (n === 1 && hasCostData) {
+    notice.style.display = 'none';
+  } else {
+    content.innerHTML = `<strong>${msg.title}</strong><p>${msg.text}</p>`;
+    notice.style.display = 'flex';
+  }
+}
+
+/* ─── Guide Panel Actions ─── */
+function toggleGuideRec(i, on) {
+  if (!editedRecommendations[i]) editedRecommendations[i] = {};
+  editedRecommendations[i].selected = on;
+  // Update count
+  const count = Object.values(editedRecommendations).filter(v => v.selected).length;
+  const el = document.getElementById('gsRecCount');
+  if (el) el.textContent = count + ' selected';
+  // Sync main recommendation cards if they exist
+  const card = document.querySelector(`.rec-card[data-index="${i}"]`);
+  if (card) card.classList.toggle('selected', on);
+}
+
+function applyGuideRecommendations() {
+  const selected = Object.entries(editedRecommendations)
+    .filter(([_, v]) => v.selected)
+    .map(([i]) => parseInt(i));
+
+  if (selected.length === 0) {
+    showToast('Toggle at least one recommendation to apply');
+    return;
+  }
+
+  // Build summary list for the modal
+  const recs = analysisData ? (analysisData.recommendations || []) : [];
+  const listEl = document.getElementById('applyModalList');
+  if (listEl) {
+    listEl.innerHTML = selected.map(i => {
+      const r = recs[i];
+      if (!r) return '';
+      const impactClass = (r.impact || '').toLowerCase().includes('high') ? 'high'
+        : (r.impact || '').toLowerCase().includes('medium') ? 'medium' : 'low';
+      return `<div class="apply-modal-item">
+        <span class="apply-modal-dot ${impactClass}"></span>
+        <span>${escHtml(r.title)}</span>
+        ${r.impact ? `<span class="rec-impact ${impactClass}">${escHtml(r.impact)}</span>` : ''}
+      </div>`;
+    }).join('');
+  }
+
+  // Show modal
+  const modal = document.getElementById('applyModal');
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeApplyModal() {
+  const modal = document.getElementById('applyModal');
+  if (modal) modal.style.display = 'none';
+}
+
+async function confirmApplyRecommendations() {
+  const selected = Object.entries(editedRecommendations)
+    .filter(([_, v]) => v.selected)
+    .map(([i]) => parseInt(i));
+
+  const btn = document.getElementById('applyModalConfirmBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Applying…'; }
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/apply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ confirm: true })
+    });
+    const json = await res.json();
+    if (json.success) {
+      closeApplyModal();
+      showToast(`✅ ${selected.length} optimization(s) applied!`);
+      selected.forEach(i => {
+        if (editedRecommendations[i]) editedRecommendations[i].selected = false;
+      });
+      populateStepPanel(3);
+      updateRecommendations();
+    } else {
+      showToast(`Error: ${json.error || 'Apply failed'}`);
+    }
+  } catch (err) {
+    showToast(`Network error: ${err.message}`);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Apply Now'; }
+  }
+}
+
 /* ─── OpenRouter Integration ─── */
 async function checkOpenRouterConfig() {
   try {
@@ -1270,16 +1493,8 @@ async function refreshDashboard() {
 
 /* ─── Cost Data Notice ─── */
 function checkCostDataNotice() {
-  const d = analysisData;
-  if (!d) return;
-  const hasCostData = (d.monthly_projected_current || 0) > 0;
-  const notice = document.getElementById('costDataNotice');
-  if (notice) {
-    // Only show when cost data is truly missing — keep hidden otherwise
-    if (!hasCostData) {
-      notice.style.display = 'flex';
-    }
-  }
+  // Delegate to contextual banner system
+  updateContextualBanner(activeStep);
 }
 
 /* ─── Helpers ─── */
