@@ -925,14 +925,21 @@ function showBalanceDisplay(usageData) {
   balanceSection.style.display = 'block';
 
   if (usageData) {
-    const usage = usageData.usage || 0;
-    const limit = usageData.limit || usageData.credit || 0;
-    const remaining = limit - usage;
-    const rate = usageData.rate_limit?.requests || usageData.rateLimit?.requests || '--';
+    // Handle both API server shape (credits.total/used/remaining, account.limit)
+    // and direct OpenRouter shape (usage, limit, rate_limit)
+    const credits = usageData.credits || {};
+    const account = usageData.account || {};
+    const usage = credits.used ?? usageData.usage ?? account.usageBalance ?? 0;
+    const limit = credits.total ?? usageData.limit ?? account.limit ?? 0;
+    const remaining = credits.remaining ?? (limit - usage);
+    const rate = usageData.rate_limit?.requests
+              || usageData.rateLimit?.requests
+              || usageData.rate?.requests
+              || '--';
 
-    setText('gsBalanceCredits', `$${limit.toFixed(2)}`);
-    setText('gsBalanceUsage', `$${usage.toFixed(2)}`);
-    setText('gsBalanceRemaining', `$${remaining.toFixed(2)}`);
+    setText('gsBalanceCredits', `$${Number(limit).toFixed(2)}`);
+    setText('gsBalanceUsage', `$${Number(usage).toFixed(2)}`);
+    setText('gsBalanceRemaining', `$${Number(remaining).toFixed(2)}`);
     setText('gsBalanceRate', typeof rate === 'number' ? `${rate}/s` : rate);
   }
 
@@ -1005,26 +1012,35 @@ async function fetchOpenRouterUsage() {
     if (!res.ok) return;
     const json = await res.json();
     if (json.success && json.configured) {
-      const usage = json.data || json;
+      const raw = json.data || json;
+      const credits = raw.credits || {};
+      const account = raw.account || {};
+      const used = credits.used ?? raw.usage ?? account.usageBalance ?? 0;
+      const limit = credits.total ?? raw.limit ?? account.limit ?? 0;
+      const remaining = credits.remaining ?? (limit - used);
+      const rate = raw.rate_limit?.requests || raw.rate?.requests || '--';
       container.innerHTML = `
         <div class="or-stats-grid">
           <div class="or-stat-card">
             <div class="or-stat-label">Usage (USD)</div>
-            <div class="or-stat-value">$${(usage.usage || 0).toFixed(2)}</div>
+            <div class="or-stat-value">$${Number(used).toFixed(2)}</div>
           </div>
           <div class="or-stat-card">
             <div class="or-stat-label">Limit</div>
-            <div class="or-stat-value">$${(usage.limit || 0).toFixed(2)}</div>
+            <div class="or-stat-value">$${Number(limit).toFixed(2)}</div>
           </div>
           <div class="or-stat-card">
             <div class="or-stat-label">Remaining</div>
-            <div class="or-stat-value">$${((usage.limit || 0) - (usage.usage || 0)).toFixed(2)}</div>
+            <div class="or-stat-value">$${Number(remaining).toFixed(2)}</div>
           </div>
           <div class="or-stat-card">
             <div class="or-stat-label">Rate Limit</div>
-            <div class="or-stat-value">${usage.rate_limit?.requests || '--'}/s</div>
+            <div class="or-stat-value">${typeof rate === 'number' ? rate + '/s' : rate}</div>
           </div>
         </div>`;
+
+      // Also update Get Started balance card if visible
+      showBalanceDisplay(raw);
     }
   } catch {
     // noop
