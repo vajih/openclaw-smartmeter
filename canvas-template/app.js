@@ -23,6 +23,7 @@ async function initializeDashboard() {
     // Try to load data from local file first (works when served statically)
     await loadAnalysisData();
     hideLoading();
+    initGetStartedCard();
     checkOpenRouterConfig();
     startAutoRefresh();
   } catch (err) {
@@ -828,6 +829,161 @@ function updateModelDetails() {
     </table>`;
 }
 
+/* ─── Inline API Key (Get Started Card) ─── */
+async function validateInlineApiKey() {
+  const input = document.getElementById('gsApiKeyInput');
+  const key = input.value.trim();
+  const status = document.getElementById('gsKeyStatus');
+  const btn = document.getElementById('gsValidateBtn');
+
+  function showStatus(msg, type) {
+    status.textContent = msg;
+    status.className = 'config-status ' + type;
+    status.style.removeProperty('display');
+  }
+
+  if (!key) { showStatus('Please enter an API key.', 'error'); return; }
+  if (!key.startsWith('sk-or-')) { showStatus('Invalid format — key should start with sk-or-', 'error'); return; }
+
+  showStatus('Validating…', 'validating');
+  btn.disabled = true;
+  btn.textContent = 'Validating…';
+
+  let validated = false;
+  let errorMsg = '';
+  let usageData = null;
+
+  // Try API server first
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/config/openrouter-key`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiKey: key })
+    });
+    const json = await res.json();
+    if (json.success) {
+      validated = true;
+      // Fetch usage via API server
+      try {
+        const ur = await fetch(`${API_BASE_URL}/api/openrouter-usage`);
+        const uj = await ur.json();
+        if (uj.success && uj.configured) usageData = uj.data || uj;
+      } catch {}
+    } else {
+      errorMsg = json.error || 'Validation failed';
+    }
+  } catch (_) {
+    // API server not available — validate directly against OpenRouter
+    try {
+      const res = await fetch('https://openrouter.ai/api/v1/auth/key', {
+        headers: { 'Authorization': `Bearer ${key}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.data) {
+          validated = true;
+          usageData = data.data;
+        } else {
+          errorMsg = 'Key not recognized by OpenRouter';
+        }
+      } else if (res.status === 401 || res.status === 403) {
+        errorMsg = 'Invalid API key — authentication failed';
+      } else {
+        errorMsg = `OpenRouter returned status ${res.status}`;
+      }
+    } catch (e2) {
+      errorMsg = 'Could not reach OpenRouter to validate — check your connection';
+    }
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Save & Validate';
+
+  if (validated) {
+    localStorage.setItem('smartmeter_openrouter_key', key);
+    showStatus('✅ API key saved and validated!', 'success');
+
+    // Show balance section, hide key input
+    setTimeout(() => {
+      showBalanceDisplay(usageData);
+      // Also sync the modal key input
+      const modalInput = document.getElementById('apiKeyInput');
+      if (modalInput) modalInput.value = key;
+      // Also update the OpenRouter sidebar section
+      fetchOpenRouterUsage();
+    }, 600);
+  } else {
+    showStatus(`❌ ${errorMsg}`, 'error');
+  }
+}
+
+function showBalanceDisplay(usageData) {
+  const keySection = document.getElementById('gsKeySection');
+  const balanceSection = document.getElementById('gsBalance');
+
+  keySection.style.display = 'none';
+  balanceSection.style.display = 'block';
+
+  if (usageData) {
+    const usage = usageData.usage || 0;
+    const limit = usageData.limit || usageData.credit || 0;
+    const remaining = limit - usage;
+    const rate = usageData.rate_limit?.requests || usageData.rateLimit?.requests || '--';
+
+    setText('gsBalanceCredits', `$${limit.toFixed(2)}`);
+    setText('gsBalanceUsage', `$${usage.toFixed(2)}`);
+    setText('gsBalanceRemaining', `$${remaining.toFixed(2)}`);
+    setText('gsBalanceRate', typeof rate === 'number' ? `${rate}/s` : rate);
+  }
+
+  // Highlight step 1 as done
+  const step1 = document.getElementById('gsStep1');
+  if (step1) { step1.classList.add('gs-step-done'); }
+}
+
+function showApiKeyInput() {
+  const keySection = document.getElementById('gsKeySection');
+  const balanceSection = document.getElementById('gsBalance');
+  keySection.style.display = 'block';
+  balanceSection.style.display = 'none';
+  document.getElementById('gsApiKeyInput').focus();
+}
+
+/** On init, check if key is already stored and auto-show balance */
+async function initGetStartedCard() {
+  const stored = localStorage.getItem('smartmeter_openrouter_key');
+  if (!stored) return;
+
+  // Pre-fill the input
+  const input = document.getElementById('gsApiKeyInput');
+  if (input) input.value = stored;
+
+  // Try to fetch balance
+  let usageData = null;
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/openrouter-usage`);
+    const json = await res.json();
+    if (json.success && json.configured) {
+      usageData = json.data || json;
+    }
+  } catch {
+    // Try direct OpenRouter
+    try {
+      const res = await fetch('https://openrouter.ai/api/v1/auth/key', {
+        headers: { 'Authorization': `Bearer ${stored}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.data) usageData = data.data;
+      }
+    } catch {}
+  }
+
+  if (usageData) {
+    showBalanceDisplay(usageData);
+  }
+}
+
 /* ─── OpenRouter Integration ─── */
 async function checkOpenRouterConfig() {
   try {
@@ -954,7 +1110,8 @@ async function saveApiKey() {
     setTimeout(() => {
       closeConfigModal();
       fetchOpenRouterUsage();
-      navigateTo('openrouter');
+      // Also sync the Get Started card
+      initGetStartedCard();
     }, 1200);
   } else {
     showStatus(`❌ ${errorMsg}`, 'error');

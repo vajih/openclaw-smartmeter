@@ -63,39 +63,83 @@
 
         <!-- Section: Overview -->
         <section class="page-section active" id="section-overview">
-            <!-- How It Works Banner -->
-            <div class="how-it-works-banner">
-                <div class="hiw-header">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                    <strong>How SmartMeter Works</strong>
-                </div>
-                <p class="hiw-desc">SmartMeter currently analyzes AI usage routed through <strong>OpenRouter</strong>. Connect your OpenRouter API key to unlock the full workflow:</p>
-                <div class="hiw-steps">
-                    <div class="hiw-step">
-                        <div class="hiw-step-num">1</div>
+            <!-- Get Started / Analyze Card -->
+            <div class="get-started-card" id="getStartedCard">
+                <div class="gs-header">
+                    <div class="gs-header-left">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                         <div>
-                            <div class="hiw-step-title">Analyze</div>
-                            <div class="hiw-step-desc">Parse your session logs to classify tasks, track costs, and break down model usage across all your OpenClaw agents.</div>
-                        </div>
-                    </div>
-                    <div class="hiw-step">
-                        <div class="hiw-step-num">2</div>
-                        <div>
-                            <div class="hiw-step-title">Evaluate</div>
-                            <div class="hiw-step-desc">Compare models side-by-side. See which models cost the most, which handle the most tasks, and where cheaper alternatives can save money without losing quality.</div>
-                        </div>
-                    </div>
-                    <div class="hiw-step">
-                        <div class="hiw-step-num">3</div>
-                        <div>
-                            <div class="hiw-step-title">Guide</div>
-                            <div class="hiw-step-desc">Get actionable recommendations — model switches, caching strategies, budget controls, and specialized agent configs — then apply them directly to your OpenClaw setup.</div>
+                            <strong class="gs-title">Get Started — Connect OpenRouter</strong>
+                            <p class="gs-subtitle">Enter your API key to analyze usage, view your balance, and get cost-saving recommendations.</p>
                         </div>
                     </div>
                 </div>
-                <div class="hiw-note">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
-                    <span>Requires an <strong>OpenRouter API key</strong>. Go to <a href="#" onclick="navigateTo('openrouter'); return false;">OpenRouter settings</a> to connect your account.</span>
+
+                <!-- API Key Input Row -->
+                <div class="gs-key-section" id="gsKeySection">
+                    <div class="gs-key-row">
+                        <div class="gs-key-input-wrap">
+                            <label class="gs-key-label" for="gsApiKeyInput">OpenRouter API Key</label>
+                            <div class="gs-key-field">
+                                <input type="password" id="gsApiKeyInput" placeholder="sk-or-v1-..." class="form-input gs-input">
+                                <button class="btn btn-primary gs-validate-btn" id="gsValidateBtn" onclick="validateInlineApiKey()">Save &amp; Validate</button>
+                            </div>
+                            <small class="form-hint">Your key is stored locally and never shared. <a href="https://openrouter.ai/keys" target="_blank">Get a key →</a></small>
+                        </div>
+                    </div>
+                    <div id="gsKeyStatus" class="config-status"></div>
+                </div>
+
+                <!-- Balance Display (shown after validation) -->
+                <div class="gs-balance" id="gsBalance" style="display:none">
+                    <div class="gs-balance-grid">
+                        <div class="gs-balance-item">
+                            <span class="gs-balance-label">Balance</span>
+                            <span class="gs-balance-value" id="gsBalanceCredits">--</span>
+                        </div>
+                        <div class="gs-balance-item">
+                            <span class="gs-balance-label">Usage</span>
+                            <span class="gs-balance-value" id="gsBalanceUsage">--</span>
+                        </div>
+                        <div class="gs-balance-item">
+                            <span class="gs-balance-label">Remaining</span>
+                            <span class="gs-balance-value gs-balance-green" id="gsBalanceRemaining">--</span>
+                        </div>
+                        <div class="gs-balance-item">
+                            <span class="gs-balance-label">Rate Limit</span>
+                            <span class="gs-balance-value" id="gsBalanceRate">--</span>
+                        </div>
+                    </div>
+                    <div class="gs-connected-badge">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+                        <span>Connected</span>
+                        <button class="btn-link gs-change-key" onclick="showApiKeyInput()">Change key</button>
+                    </div>
+                </div>
+
+                <!-- 3-Step Flow -->
+                <div class="gs-steps">
+                    <div class="gs-step" id="gsStep1">
+                        <div class="gs-step-num">1</div>
+                        <div>
+                            <div class="gs-step-title">Analyze</div>
+                            <div class="gs-step-desc">Parse session logs to classify tasks, track costs, and break down model usage.</div>
+                        </div>
+                    </div>
+                    <div class="gs-step" id="gsStep2">
+                        <div class="gs-step-num">2</div>
+                        <div>
+                            <div class="gs-step-title">Evaluate</div>
+                            <div class="gs-step-desc">Compare models side-by-side — see which cost the most and where cheaper alternatives save money.</div>
+                        </div>
+                    </div>
+                    <div class="gs-step" id="gsStep3">
+                        <div class="gs-step-num">3</div>
+                        <div>
+                            <div class="gs-step-title">Guide</div>
+                            <div class="gs-step-desc">Get actionable recommendations — model switches, caching strategies, and budget controls.</div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
