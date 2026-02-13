@@ -5,6 +5,7 @@
 
 /* ─── Globals ─── */
 const API_BASE_URL = `http://localhost:${window.__SMARTMETER_API_PORT || 3001}`;
+const STORAGE_PREFIX = window.__SMARTMETER_USER ? `smartmeter_${window.__SMARTMETER_USER}_` : 'smartmeter_';
 let analysisData = null;
 let modelChart = null;
 let taskChart = null;
@@ -901,7 +902,7 @@ async function validateInlineApiKey() {
   btn.textContent = 'Save & Validate';
 
   if (validated) {
-    localStorage.setItem('smartmeter_openrouter_key', key);
+    localStorage.setItem(STORAGE_PREFIX + 'openrouter_key', key);
     showStatus('✅ API key saved and validated!', 'success');
 
     // Show balance section, hide key input
@@ -959,7 +960,7 @@ function showApiKeyInput() {
 
 /** On init, check if key is already stored and auto-show balance */
 async function initGetStartedCard() {
-  const stored = localStorage.getItem('smartmeter_openrouter_key');
+  const stored = localStorage.getItem(STORAGE_PREFIX + 'openrouter_key');
   if (!stored) return;
 
   // Pre-fill the input
@@ -1274,7 +1275,7 @@ async function fetchOpenRouterUsage() {
 function openConfigModal() {
   document.getElementById('configModal').style.display = 'flex';
   const input = document.getElementById('apiKeyInput');
-  const stored = localStorage.getItem('smartmeter_openrouter_key');
+  const stored = localStorage.getItem(STORAGE_PREFIX + 'openrouter_key');
   if (stored && !input.value) input.value = stored;
   input.focus();
   const status = document.getElementById('configStatus');
@@ -1344,7 +1345,7 @@ async function saveApiKey() {
   }
 
   if (validated) {
-    localStorage.setItem('smartmeter_openrouter_key', key);
+    localStorage.setItem(STORAGE_PREFIX + 'openrouter_key', key);
     showStatus('✅ API key saved and validated!', 'success');
     setTimeout(() => {
       closeConfigModal();

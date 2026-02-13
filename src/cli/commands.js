@@ -92,9 +92,9 @@ export async function cmdAnalyze(opts = {}) {
       const apiServer = await startApiServer({ port: apiPort });
       const actualApiPort = apiServer.server.address().port;
       
-      // Start static file server in background
+      // Start static file server in background (pass API port for injection)
       console.log("✓ Starting dashboard server...");
-      const staticServer = await startStaticFileServer(deployer.canvasDir, port);
+      const staticServer = await startStaticFileServer(deployer.canvasDir, port, { apiPort: actualApiPort });
       const actualPort = staticServer.port;
       
       const url = `http://localhost:${actualPort}`;
@@ -885,10 +885,15 @@ async function findAvailablePort(startPort, maxAttempts = 10) {
   return null;
 }
 
-async function startStaticFileServer(directory, port) {
+async function startStaticFileServer(directory, port, options = {}) {
   const { createServer } = await import("node:http");
   const { readFile, stat } = await import("node:fs/promises");
   const { join, extname } = await import("node:path");
+  const { userInfo } = await import("node:os");
+
+  const apiPort = options.apiPort || 3001;
+  const osUser = (() => { try { return userInfo().username; } catch { return ''; } })();
+  const portScript = `<script>window.__SMARTMETER_API_PORT=${apiPort};window.__SMARTMETER_USER=${JSON.stringify(osUser)};</script>`;
 
   const mimeTypes = {
     '.html': 'text/html',
@@ -916,9 +921,19 @@ async function startStaticFileServer(directory, port) {
       }
 
       // Read and serve file
-      const content = await readFile(filePath);
+      let content = await readFile(filePath);
       const ext = extname(filePath);
       const mimeType = mimeTypes[ext] || 'application/octet-stream';
+
+      // Inject API port and OS username into index.html so dashboard connects
+      // to the correct API server and scopes localStorage per user
+      if (ext === '.html') {
+        let html = content.toString('utf-8');
+        html = html.replace('</head>', `${portScript}\n</head>`);
+        res.writeHead(200, { 'Content-Type': mimeType });
+        res.end(html);
+        return;
+      }
 
       res.writeHead(200, { 'Content-Type': mimeType });
       res.end(content);
