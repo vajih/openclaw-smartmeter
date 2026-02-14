@@ -61,6 +61,8 @@ export class ApiServer {
     this.port = opts.port || 3001;
     this.canvasDir = opts.canvasDir;
     this.server = null;
+    this.sessionToken = opts.sessionToken || '';
+    this.dashboardOrigin = opts.dashboardOrigin || null;
   }
 
   /**
@@ -68,18 +70,29 @@ export class ApiServer {
    */
   async start() {
     this.server = createServer(async (req, res) => {
-      // Enable CORS for local development
-      res.setHeader("Access-Control-Allow-Origin", "*");
+      // CORS — restrict to the specific dashboard origin when available
+      const allowedOrigin = this.dashboardOrigin || '*';
+      res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
       res.setHeader(
         "Access-Control-Allow-Methods",
         "GET, POST, PUT, DELETE, OPTIONS",
       );
-      res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-SmartMeter-Token");
 
       if (req.method === "OPTIONS") {
         res.writeHead(200);
         res.end();
         return;
+      }
+
+      // Session-token authentication: reject requests from other users' dashboards
+      if (this.sessionToken) {
+        const reqToken = req.headers['x-smartmeter-token'] || '';
+        if (reqToken !== this.sessionToken) {
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, error: 'Invalid session — this API server belongs to a different SmartMeter session.' }));
+          return;
+        }
       }
 
       try {

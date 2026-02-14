@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.4] - 2025-07-14
+
+### Fixed
+
+- **Multi-user key isolation (defense in depth)**: Completely prevents API key contamination between macOS users on shared machines
+  - **Session token authentication**: Each `smartmeter analyze` invocation generates a unique cryptographic token; the API server rejects requests without a matching token, making cross-user API calls impossible
+  - **CORS origin locking**: API server restricts CORS to the exact dashboard origin (e.g., `http://localhost:8081`) instead of wildcard `*`
+  - **Cache-busting headers**: All served files include `Cache-Control: no-store` to prevent stale dashboard pages from being cached
+  - **Fixed `cmdServe` missing apiPort**: The `smartmeter serve` command now correctly passes the API port to the static server (was defaulting to 3001)
+  - All API calls from the dashboard now go through an authenticated `apiFetch()` wrapper that attaches the session token header
+
 ## [0.3.0] - 2026-02-11
 
 ### Added

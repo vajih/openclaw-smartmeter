@@ -6,6 +6,21 @@
 /* ─── Globals ─── */
 const API_BASE_URL = `http://localhost:${window.__SMARTMETER_API_PORT || 3001}`;
 const STORAGE_PREFIX = window.__SMARTMETER_USER ? `smartmeter_${window.__SMARTMETER_USER}_` : 'smartmeter_';
+const SESSION_TOKEN = window.__SMARTMETER_TOKEN || '';
+
+/**
+ * Authenticated fetch wrapper — attaches the session token so the API server
+ * can verify that this dashboard belongs to the same SmartMeter session.
+ * Prevents cross-user contamination on shared machines.
+ */
+function apiFetch(url, opts = {}) {
+  const headers = { ...(opts.headers || {}) };
+  if (SESSION_TOKEN) {
+    headers['X-SmartMeter-Token'] = SESSION_TOKEN;
+  }
+  return fetch(url, { ...opts, headers });
+}
+
 let analysisData = null;
 let modelChart = null;
 let taskChart = null;
@@ -38,7 +53,7 @@ async function initializeDashboard() {
 async function loadAnalysisData() {
   try {
     // First try the API
-    const res = await fetch(`${API_BASE_URL}/api/status`, { signal: AbortSignal.timeout(3000) });
+    const res = await apiFetch(`${API_BASE_URL}/api/status`, { signal: AbortSignal.timeout(3000) });
     if (res.ok) {
       const json = await res.json();
       if (json.success && json.analysis) {
@@ -654,7 +669,7 @@ function resetBudgetDefaults() {
 
 async function applyBudgetControls() {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/apply`, {
+    const res = await apiFetch(`${API_BASE_URL}/api/apply`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -772,7 +787,7 @@ async function applySelectedRecommendations() {
   if (!confirmed) return;
 
   try {
-    const res = await fetch(`${API_BASE_URL}/api/apply`, {
+    const res = await apiFetch(`${API_BASE_URL}/api/apply`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ confirm: true })
@@ -857,7 +872,7 @@ async function validateInlineApiKey() {
 
   // Try API server first
   try {
-    const res = await fetch(`${API_BASE_URL}/api/config/openrouter-key`, {
+    const res = await apiFetch(`${API_BASE_URL}/api/config/openrouter-key`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ apiKey: key })
@@ -867,7 +882,7 @@ async function validateInlineApiKey() {
       validated = true;
       // Fetch usage via API server
       try {
-        const ur = await fetch(`${API_BASE_URL}/api/openrouter-usage`);
+        const ur = await apiFetch(`${API_BASE_URL}/api/openrouter-usage`);
         const uj = await ur.json();
         if (uj.success && uj.configured) usageData = uj.data || uj;
       } catch {}
@@ -970,7 +985,7 @@ async function initGetStartedCard() {
   // Try to fetch balance
   let usageData = null;
   try {
-    const res = await fetch(`${API_BASE_URL}/api/openrouter-usage`);
+    const res = await apiFetch(`${API_BASE_URL}/api/openrouter-usage`);
     const json = await res.json();
     if (json.success && json.configured) {
       usageData = json.data || json;
@@ -1191,7 +1206,7 @@ async function confirmApplyRecommendations() {
   if (btn) { btn.disabled = true; btn.textContent = 'Applying…'; }
 
   try {
-    const res = await fetch(`${API_BASE_URL}/api/apply`, {
+    const res = await apiFetch(`${API_BASE_URL}/api/apply`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ confirm: true })
@@ -1218,7 +1233,7 @@ async function confirmApplyRecommendations() {
 /* ─── OpenRouter Integration ─── */
 async function checkOpenRouterConfig() {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/config/openrouter-key`);
+    const res = await apiFetch(`${API_BASE_URL}/api/config/openrouter-key`);
     if (!res.ok) return;
     const json = await res.json();
     if (json.configured) {
@@ -1232,7 +1247,7 @@ async function checkOpenRouterConfig() {
 async function fetchOpenRouterUsage() {
   const container = document.getElementById('openRouterContent');
   try {
-    const res = await fetch(`${API_BASE_URL}/api/openrouter-usage`);
+    const res = await apiFetch(`${API_BASE_URL}/api/openrouter-usage`);
     if (!res.ok) return;
     const json = await res.json();
     if (json.success && json.configured) {
@@ -1313,7 +1328,7 @@ async function saveApiKey() {
 
   // Try API server first
   try {
-    const res = await fetch(`${API_BASE_URL}/api/config/openrouter-key`, {
+    const res = await apiFetch(`${API_BASE_URL}/api/config/openrouter-key`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ apiKey: key })
@@ -1361,7 +1376,7 @@ async function saveApiKey() {
 /* ─── Preview Modal ─── */
 async function viewConfig() {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/preview`);
+    const res = await apiFetch(`${API_BASE_URL}/api/preview`);
     const json = await res.json();
     if (json.success) {
       document.getElementById('previewConfigCode').textContent = JSON.stringify(json.config, null, 2);
@@ -1381,7 +1396,7 @@ async function applyOptimizations() {
   const confirmed = confirm('Apply all optimizations? A backup will be created.');
   if (!confirmed) return;
   try {
-    const res = await fetch(`${API_BASE_URL}/api/apply`, {
+    const res = await apiFetch(`${API_BASE_URL}/api/apply`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ confirm: true })
@@ -1401,7 +1416,7 @@ async function applyOptimizations() {
 /* ─── Export ─── */
 async function exportReport() {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/export`);
+    const res = await apiFetch(`${API_BASE_URL}/api/export`);
     if (!res.ok) throw new Error('Export failed');
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
