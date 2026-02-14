@@ -1,7 +1,6 @@
 import { readFile, writeFile, readdir, copyFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import { randomBytes } from "node:crypto";
 
 import { parseAllSessions } from "../analyzer/parser.js";
 import { classifyTasks } from "../analyzer/classifier.js";
@@ -88,23 +87,15 @@ export async function cmdAnalyze(opts = {}) {
       const port = opts.port || 8080;
       const apiPort = opts.apiPort || 3001;
       
-      // Generate a unique session token for this invocation.
-      // The API server rejects requests without a matching token,
-      // preventing cross-user contamination on shared machines.
-      const sessionToken = randomBytes(16).toString('hex');
-      
       // Start API server in background
       console.log("✓ Starting API server...");
-      const apiServer = await startApiServer({ port: apiPort, sessionToken });
+      const apiServer = await startApiServer({ port: apiPort });
       const actualApiPort = apiServer.server.address().port;
       
-      // Start static file server in background (pass API port + token for injection)
+      // Start static file server in background (pass API port for injection)
       console.log("✓ Starting dashboard server...");
-      const staticServer = await startStaticFileServer(deployer.canvasDir, port, { apiPort: actualApiPort, sessionToken });
+      const staticServer = await startStaticFileServer(deployer.canvasDir, port, { apiPort: actualApiPort });
       const actualPort = staticServer.port;
-      
-      // Now that we know both ports, update the API server's CORS allowedOrigin
-      apiServer.dashboardOrigin = `http://localhost:${actualPort}`;
       
       const url = `http://localhost:${actualPort}`;
       
@@ -797,21 +788,15 @@ export async function cmdServe(opts = {}) {
   }
 
   try {
-    // Generate session token for cross-server authentication
-    const sessionToken = randomBytes(16).toString('hex');
-
     // Start API server
     console.log("\n🚀 Starting API server...");
-    const apiServer = await startApiServer({ port: apiPort, sessionToken });
+    const apiServer = await startApiServer({ port: apiPort });
     const actualApiPort = apiServer.server.address().port;
 
     // Start static file server (using Node.js)
     console.log(`\n🚀 Starting dashboard server on port ${port}...`);
-    const staticServer = await startStaticFileServer(deployer.canvasDir, port, { apiPort: actualApiPort, sessionToken });
+    const staticServer = await startStaticFileServer(deployer.canvasDir, port);
     const actualPort = staticServer.port;
-
-    // Lock CORS to the actual dashboard origin
-    apiServer.dashboardOrigin = `http://localhost:${actualPort}`;
 
     const url = `http://localhost:${actualPort}`;
     console.log(`
@@ -907,16 +892,8 @@ async function startStaticFileServer(directory, port, options = {}) {
   const { userInfo } = await import("node:os");
 
   const apiPort = options.apiPort || 3001;
-  const sessionToken = options.sessionToken || '';
   const osUser = (() => { try { return userInfo().username; } catch { return ''; } })();
-  const injectedScript = `<script>window.__SMARTMETER_API_PORT=${apiPort};window.__SMARTMETER_USER=${JSON.stringify(osUser)};window.__SMARTMETER_TOKEN=${JSON.stringify(sessionToken)};</script>`;
-
-  // Cache-busting: force no-cache on all responses to prevent stale dashboards
-  const noCacheHeaders = {
-    'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
-    'Pragma': 'no-cache',
-    'Expires': '0',
-  };
+  const portScript = `<script>window.__SMARTMETER_API_PORT=${apiPort};window.__SMARTMETER_USER=${JSON.stringify(osUser)};</script>`;
 
   const mimeTypes = {
     '.html': 'text/html',
@@ -934,8 +911,6 @@ async function startStaticFileServer(directory, port, options = {}) {
     try {
       // Parse URL and handle root
       let filePath = req.url === '/' ? '/index.html' : req.url;
-      // Strip query strings (cache busters, etc.)
-      filePath = filePath.split('?')[0];
       filePath = join(directory, filePath);
 
       // Check if file exists
@@ -950,17 +925,17 @@ async function startStaticFileServer(directory, port, options = {}) {
       const ext = extname(filePath);
       const mimeType = mimeTypes[ext] || 'application/octet-stream';
 
-      // Inject API port, session token, and OS username into index.html so
-      // dashboard connects to the correct API server and can't cross-contaminate
+      // Inject API port and OS username into index.html so dashboard connects
+      // to the correct API server and scopes localStorage per user
       if (ext === '.html') {
         let html = content.toString('utf-8');
-        html = html.replace('</head>', `${injectedScript}\n</head>`);
-        res.writeHead(200, { 'Content-Type': mimeType, ...noCacheHeaders });
+        html = html.replace('</head>', `${portScript}\n</head>`);
+        res.writeHead(200, { 'Content-Type': mimeType });
         res.end(html);
         return;
       }
 
-      res.writeHead(200, { 'Content-Type': mimeType, ...noCacheHeaders });
+      res.writeHead(200, { 'Content-Type': mimeType });
       res.end(content);
     } catch (error) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
